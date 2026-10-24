@@ -1,6 +1,6 @@
-/* Places model: the 17 NCR cities (with 2025 projected population) and the 52 listed public places
-   with their assumed typical-week busyness. Domain data and rules only; no DOM. */
-import { VENUE_BASE } from "./static-data-model.js";
+/* Places model: the 17 NCR cities (with 2025 projected population) and the malls with a BestTime
+   foot-traffic forecast, the places of the crowding layer. Domain data and rules only; no DOM. */
+import { BESTTIME, VENUE_BASE } from "./static-data-model.js";
 
 /* =====================================================================
    AppModel: reference data (cities, TB series, public places) and app state.
@@ -30,41 +30,85 @@ export const cityName = id => id === "all" ? "All of NCR" : CITY[id].name + (CIT
    src/services/contract-loader.js and src/models/tb-data-model.js
    (YEARS, yStatus, TB, tbVal, trendFor, TB_BREAKS, tbClass are defined there). */
 
-/* ---------- Public places and typical-week busyness ----------
-   Each value is a share (0–100) of that place's own busiest hour in a typical week,
-   the way services such as BestTime report it. These are PROXY patterns: one assumed
-   weekly shape per place type (mall, market, transit, tourist), the same for every place
-   of that type. They are not measured for any specific place, not live readings and not
-   headcounts. There is no random per-place variation, so the map does not
-   suggest place-specific measurements. */
-export const CATEGORY = {
-  mall: { label: "Mall", open: [10, 22] },
-  market: { label: "Public market", open: [4, 20] },
-  transit: { label: "Transit station", open: [5, 23] },
-  tourist: { label: "Tourist destination", open: [6, 21] }
-};
+/* ---------- Crowding places: malls with a BestTime forecast ----------
+   The crowding layer covers only malls with a BestTime forecast (data/places/besttime-malls.json).
+   Each value is a share (0–100) of that mall's own busiest hour in a typical week, from
+   anonymised phone visit data: a forecast, not a live reading and not a headcount. Nothing is
+   estimated for places without a forecast. Each mall keeps its BestTime record in `bt`.
+   - One complex, one mall: BestTime lists some complexes in parts (SM Megamall Building A and
+     B, SM Mall of Asia and its North Wing). A forecast mall within 320 m of a bigger one (more
+     reviews) is folded into it (named in `bt.parts`) and not counted again.
+   - A mall in the listed public places (data/places/public-places.json) gives its familiar name
+     and id to the biggest forecast mall within 300 m, or else to a forecast mall with the same
+     name within 1 km (listed coordinates are approximate). Listed places with no forecast
+     (other malls, markets, stations, tourist spots) are not shown. */
+/* Distance in metres between two { lat, lng } points (flat approximation, fine within NCR) */
+export const distM = (a, b) => Math.hypot((a.lat - b.lat) * 111320, (a.lng - b.lng) * 111320 * Math.cos(14.6 * Math.PI / 180));
+
+/* Same mall name, ignoring case, punctuation and generic words: "SM City Sucat" = "SM City Sucat",
+   "TriNoma" = "TriNoma Mall", "Greenhills Shopping Center" = "Greenhills Mall". Every distinctive
+   word of the shorter name must appear in the other. */
+const GENERIC = new Set(["sm", "city", "mall", "malls", "the", "shopping", "center", "centre", "by", "ayala", "of", "at", "and", "building", "a", "b"]);
+const words = n => n.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter(w => w && !GENERIC.has(w));
+export function sameName(a, b) {
+  const [x, y] = [words(a), words(b)].sort((p, q) => p.length - q.length);
+  return x.length > 0 && x.every(w => y.includes(w));
+}
+
+/* Every crowding place is a mall; the label is shown on cards, markers and in search */
+export const CATEGORY = { mall: { label: "Mall" } };
 
 export const PLACES = (() => {
-  const g = (h, mu, s) => Math.exp(-((h - mu) ** 2) / (2 * s * s));
-  const PROFILE = {
-    mall: (h, we, dow) => we ? .45 + .9 * g(h, 15.5, 3) : (.25 + .45 * g(h, 13, 2.5) + .75 * g(h, 18.5, 2)) * (dow === 5 && h >= 17 ? 1.12 : 1),
-    market: (h, we) => we ? .2 + 1.0 * g(h, 7.5, 2.2) + .45 * g(h, 16, 2) : .15 + .9 * g(h, 7, 2) + .4 * g(h, 17, 2),
-    transit: (h, we) => we ? .15 + .55 * g(h, 15, 4) : .22 + 1.0 * g(h, 7.5, 1.3) + .95 * g(h, 18, 1.5),
-    tourist: (h, we) => we ? .15 + .95 * g(h, 16.5, 2.8) : .1 + .35 * g(h, 16, 3)
-  };
-  return VENUE_BASE.map(v => {
-    const [o, c] = CATEGORY[v.cat].open;
-    const week = [];
-    for (let d = 0; d < 7; d++) {
-      const row = [];
-      for (let h = 0; h < 24; h++) row.push(h >= o && h < c ? PROFILE[v.cat](h, d === 0 || d === 6, d) : null);
-      week.push(row);
-    }
-    const mx = Math.max(...week.flat().filter(x => x != null));
-    return { ...v, week: week.map(row => row.map(x => x == null ? null : Math.round(100 * x / mx))) };
-  });
+  /* Biggest first, so each complex keeps its main mall and folds the smaller parts into it */
+  const forecast = [];
+  for (const v of (BESTTIME?.venues || []).filter(v => v.week && CITY[v.city]).sort((a, b) => b.reviews - a.reviews)) {
+    const main = forecast.find(m => distM(m, v) < 320);
+    if (main) main.parts.push(v.name); else forecast.push({ ...v, parts: [] });
+  }
+  /* Listed malls lend their name and id: the biggest forecast mall within 300 m, failing that the nearest one with the same name within 1 km */
+  const listedFor = new Map();
+  for (const v of VENUE_BASE.filter(v => v.cat === "mall")) {
+    const free = forecast.filter(b => !listedFor.has(b.id));
+    const bt = free.filter(b => distM(v, b) < 300)[0] || free.filter(b => distM(v, b) < 1000 && sameName(v.name, b.name)).sort((a, b) => distM(v, a) - distM(v, b))[0];
+    if (bt) listedFor.set(bt.id, v);
+  }
+  return forecast.map(b => { const v = listedFor.get(b.id);
+    return { id: v ? v.id : b.id, name: v ? v.name : b.name, cat: "mall", city: b.city, lat: b.lat, lng: b.lng, week: b.week, bt: b }; });
 })();
 
 export const PLACE = Object.fromEntries(PLACES.map(p => [p.id, p]));
+
+/* Malls with a BestTime forecast (every crowding place), and those in one city (biggest first) */
+export const FORECAST_MALLS = PLACES;
+export const cityMalls = id => FORECAST_MALLS.filter(p => p.city === id).sort((a, b) => b.bt.reviews - a.bt.reviews);
+
+/* How many of these malls are open at day d, hour h, and the hour of day d when they are busiest
+   together (highest sum of their forecasts; null if all closed that day) */
+export const openCount = (malls, d, h) => malls.filter(p => p.week[d][h] != null).length;
+export function busiestHour(malls, d) {
+  let best = null, top = 0;
+  for (let h = 0; h < 24; h++) { const v = malls.reduce((a, p) => a + (p.week[d][h] ?? 0), 0); if (v > top) { top = v; best = h; } }
+  return best;
+}
+/* True when most (more than half) of these malls are closed at day d, hour h */
+export const mostClosed = (malls, d, h) => malls.length > 0 && openCount(malls, d, h) * 2 < malls.length;
+
+/* The city the crowding map shows: the selected city, or the city of the selected place */
+export const crowdCity = sel => sel?.type === "city" ? sel.id : sel?.type === "place" && PLACE[sel.id] ? PLACE[sel.id].city : null;
+
+/* One weekday of a forecast week: busiest hour, busy hours (High or more, 70%+) and quieter open hours (Low, under 40%) */
+export function daySummary(week, d) {
+  const row = week[d], open = [...row.keys()].filter(h => row[h] != null);
+  if (!open.length) return null;
+  const top = open.reduce((a, h) => row[h] > row[a] ? h : a, open[0]);
+  return { top, topValue: row[top], busy: hourRanges(open.filter(h => row[h] >= 70)), quiet: hourRanges(open.filter(h => row[h] < 40)) };
+}
+
+/* Hours (0–23) as short ranges: [10, 11, 12, 15] → [[10, 13], [15, 16]] (end exclusive). */
+export function hourRanges(hours) {
+  const out = [];
+  for (const h of [...new Set(hours)].sort((a, b) => a - b)) { const last = out[out.length - 1]; if (last && last[1] === h) last[1] = h + 1; else out.push([h, h + 1]); }
+  return out;
+}
 
 export function busyLevel(p) { if (p == null) return "Closed"; if (p < 40) return "Low"; if (p < 70) return "Moderate"; if (p < 90) return "High"; return "Very high"; }

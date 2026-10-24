@@ -15,7 +15,7 @@
 </head>
 <body>
 <h1>Calculation and error tests</h1>
-<p>Checks the map's calculations (TB classes, busy levels, accreditation status, foot-traffic shares, formatting) against the real data files, and checks that bad files and bad URLs fail safely. Open through serve.ps1: <code>http://localhost:8000/tests/unit-tests.html</code>.</p>
+<p>Checks the map's calculations (TB classes, busy levels, accreditation status, BestTime mall crowding, formatting) against the real data files, and checks that bad files and bad URLs fail safely. Open through serve.ps1: <code>http://localhost:8000/tests/unit-tests.html</code>.</p>
 <p id="sum">Running…</p>
 <div id="out"></div>
 <script type="module">
@@ -23,9 +23,10 @@ import { APP_CONFIG } from "./src/config/app-config.js";
 import { fetchJSON, DataLoadError } from "./src/services/data-service.js";
 import { ContractLoader } from "./src/services/contract-loader.js";
 import { TbData, tbVal, tbClass, yStatus, YEARS, DEFAULT_YEAR, TB_BREAKS } from "./src/models/tb-data-model.js";
-import { busyLevel, CITIES, PLACES } from "./src/models/places-model.js";
+import { busyLevel, CITIES, PLACES, busiestHour, cityMalls, crowdCity, daySummary, distM, hourRanges, mostClosed, openCount, sameName } from "./src/models/places-model.js";
 import { FAC, facStatus, facTitle, facDirections } from "./src/models/facilities-model.js";
-import { OsmFoot } from "./src/models/foot-traffic-model.js";
+import { Crowd } from "./src/models/crowd-model.js";
+import { VENUE_BASE } from "./src/models/static-data-model.js";
 import { esc, fmt, isoDate, parseIso, shortNum } from "./src/utils/format.js";
 
 const groups = [];
@@ -42,7 +43,8 @@ const rejects = async (p, test) => { try { await p; return false; } catch (e) { 
   group("TB data and classes");
   ok("default year is 2025", DEFAULT_YEAR === 2025);
   ok("2025 is an available year", YEARS.includes(2025), YEARS.join(", "));
-  ok("2019 has no records and is not filled from another year", yStatus(2019).s === "missing" && tbVal("qc", 2019, "count") === null);
+  ok("Quezon City 2019 count matches the FHSIS 2019 report (14,508)", tbVal("qc", 2019, "count") === 14508, tbVal("qc", 2019, "count"));
+  ok("2017 has no records and is not filled from another year", yStatus(2017).s === "missing" && tbVal("qc", 2017, "count") === null);
   ok("Quezon City 2018 count matches the cleaned file (11,947)", tbVal("qc", 2018, "count") === 11947, tbVal("qc", 2018, "count"));
   ok("NCR total = sum of the 17 cities", tbVal("all", 2025, "count") === CITIES.reduce((a, c) => a + (tbVal(c.id, 2025, "count") ?? 0), 0));
   ok("unknown city gives null, not 0", tbVal("not-a-city", 2025, "count") === null);
@@ -51,6 +53,8 @@ const rejects = async (p, test) => { try { await p; return false; } catch (e) { 
   ok("tbClass: 9,999 → 3, 10,000 → 4 (top class)", tbClass(9999, "count") === 3 && tbClass(10000, "count") === 4);
   ok("tbClass: every 2025 city value falls in a class 0–4", CITIES.every(c => { const k = tbClass(tbVal(c.id, 2025, "count"), "count"); return k >= 0 && k <= 4; }));
   ok("five legend labels for four edges", TB_BREAKS.count.labels.length === TB_BREAKS.count.edges.length + 1);
+  ok("tbClass (per 100,000): 399 → 0, 400 → 1, 1,000 → 4", tbClass(399, "rate") === 0 && tbClass(400, "rate") === 1 && tbClass(1000, "rate") === 4);
+  ok("tbClass (per 100,000): 2025 city rates use at least four of the five classes", new Set(CITIES.map(c => tbClass(tbVal(c.id, 2025, "rate"), "rate"))).size >= 4);
 
   group("Crowding levels and foot traffic");
   ok("busyLevel: closed (null) → Closed", busyLevel(null) === "Closed");
@@ -58,17 +62,27 @@ const rejects = async (p, test) => { try { await p; return false; } catch (e) { 
   ok("busyLevel: 40 → Moderate, 69 → Moderate", busyLevel(40) === "Moderate" && busyLevel(69) === "Moderate");
   ok("busyLevel: 70 → High, 89 → High", busyLevel(70) === "High" && busyLevel(89) === "High");
   ok("busyLevel: 90 and 100 → Very high", busyLevel(90) === "Very high" && busyLevel(100) === "Very high");
-  ok("52 listed public places loaded", PLACES.length === 52, PLACES.length);
-  let maxShare = 0, minShare = 1;
-  for (const k of OsmFoot.ORDER) for (let d = 0; d < 7; d++) for (let h = 0; h < 24; h++) { const v = OsmFoot.share(k, d, h); maxShare = Math.max(maxShare, v); minShare = Math.min(minShare, v); }
-  ok("foot-traffic shares stay between 0 and 1", minShare >= 0 && maxShare <= 1.000001, `${minShare}–${maxShare}`);
-  ok("each type reaches 100% at its busiest hour", OsmFoot.ORDER.every(k => { let m = 0; for (let d = 0; d < 7; d++) for (let h = 0; h < 24; h++) m = Math.max(m, OsmFoot.share(k, d, h)); return Math.abs(m - 1) < 1e-9; }));
-  ok("malls are 0% when closed (3:00)", OsmFoot.share("mall", 3, 3) === 0);
-  ok("schools are 0% on Saturday", [...Array(24).keys()].every(h => OsmFoot.share("school", 6, h) === 0));
-  ok("OSM tags: mall, market, supermarket", OsmFoot.classify({ shop: "mall" }) === "mall" && OsmFoot.classify({ amenity: "marketplace" }) === "market" && OsmFoot.classify({ shop: "supermarket" }) === "supermarket");
-  ok("OSM tags: a train station is rail, a plain station is bus", OsmFoot.classify({ public_transport: "station", train: "yes" }) === "rail" && OsmFoot.classify({ public_transport: "station" }) === "bus");
-  ok("OSM tags: unrelated places are ignored", OsmFoot.classify({ amenity: "hospital" }) === null && OsmFoot.classify(null) === null);
-  ok("the foot-traffic endpoint is the free Overpass API over HTTPS", /^https:\/\/overpass-api\.de\//.test(APP_CONFIG.overpassEndpoint));
+  const btPlaces = PLACES.filter(p => p.bt);
+  ok("52 listed public places loaded", VENUE_BASE.length === 52, VENUE_BASE.length);
+  ok("crowding places are only malls with a BestTime forecast (no estimates)", PLACES.length > 0 && PLACES.every(p => p.cat === "mall" && p.bt && p.week === p.bt.week), `${PLACES.length} malls`);
+  ok("BestTime forecasts only on malls inside NCR cities", btPlaces.every(p => p.cat === "mall" && CITIES.some(c => c.id === p.city)), `${btPlaces.length} malls`);
+  ok("BestTime weeks: 7 days × 24 hours, 0–100 or closed", btPlaces.every(p => p.week.length === 7 && p.week.every(r => r.length === 24 && r.every(x => x === null || (x >= 0 && x <= 100)))));
+  ok("every forecast mall is a place once", new Set(btPlaces.map(p => p.bt.id)).size === btPlaces.length);
+  ok("cityMalls: only that city, biggest first", CITIES.every(c => { const m = cityMalls(c.id); return m.every(p => p.city === c.id) && m.every((p, i) => !i || m[i - 1].bt.reviews >= p.bt.reviews); }));
+  ok("crowdCity: a city, a place's city, or none", crowdCity({ type: "city", id: "qc" }) === "qc" && crowdCity({ type: "place", id: "v01" }) === "mandaluyong" && crowdCity(null) === null);
+  ok("hourRanges merges consecutive hours", JSON.stringify(hourRanges([15, 10, 11, 12])) === "[[10,13],[15,16]]" && hourRanges([]).length === 0);
+  { const wk = Array.from({ length: 7 }, () => Array(24).fill(null)); [10, 20, 30, 75, 90, 60].forEach((v, i) => wk[1][10 + i] = v); const sm = daySummary(wk, 1);
+    ok("daySummary: busiest, busy (70%+) and quieter (<40%) hours; closed day → null", sm.top === 14 && JSON.stringify(sm.busy) === "[[13,15]]" && JSON.stringify(sm.quiet) === "[[10,13]]" && daySummary(wk, 2) === null); }
+  { const mk = vals => ({ week: Array.from({ length: 7 }, (_, d) => Array.from({ length: 24 }, (_, h) => d === 1 && vals[h] != null ? vals[h] : null)) });
+    const a = mk({ 10: 20, 18: 90 }), b = mk({ 10: 30, 18: 60, 21: 40 });
+    ok("openCount / mostClosed: closed malls counted, more than half closed = most", openCount([a, b], 1, 21) === 1 && !mostClosed([a, b], 1, 21) && mostClosed([a, b], 1, 23) && !mostClosed([], 1, 23));
+    ok("busiestHour: highest sum of the malls' forecasts; all closed → null", busiestHour([a, b], 1) === 18 && busiestHour([a, b], 2) === null); }
+  ok("one complex, one mall: no two forecast malls within 320 m", btPlaces.every((p, i) => btPlaces.every((q, j) => i === j || distM(p.bt, q.bt) >= 320)));
+  ok("folded parts are named on the main mall (Megamall Building B, MOA North Wing)", btPlaces.some(p => p.bt.parts.some(n => /Building B/.test(n))) && btPlaces.some(p => p.bt.parts.some(n => /North Wing/.test(n))));
+  ok("sameName: generic words and punctuation ignored, distinctive words must match", sameName("SM City Sucat", "SM City Sucat") && sameName("TriNoma", "TriNoma Mall") && sameName("Greenhills Shopping Center", "Greenhills Mall") && !sameName("SM City Sucat", "SM City Bicutan") && !sameName("SM City", "Ayala Malls"));
+  ok("listed SM City Sucat and SM City Valenzuela use their BestTime forecasts (linked by name)", !!PLACES.find(p => p.id === "v20")?.bt && !!PLACES.find(p => p.id === "v17")?.bt);
+  ok("no mall shown twice: listed malls with a same-named forecast within 1 km became that mall (familiar name and id)", VENUE_BASE.filter(v => v.cat === "mall").every(v => !btPlaces.some(q => distM(v, q.bt) < 1000 && sameName(v.name, q.bt.name)) || !!PLACES.find(p => p.id === v.id)) && new Set(PLACES.map(p => p.id)).size === PLACES.length);
+  ok("crowd surface uses only BestTime malls", Crowd.count() === btPlaces.length && Crowd.ready() === btPlaces.length > 0);
 
   group("TB-DOTS facilities");
   ok("385 facilities loaded", FAC.length === 385, FAC.length);
@@ -107,7 +121,7 @@ const rejects = async (p, test) => { try { await p; return false; } catch (e) { 
   ok("server: hidden files (.gitignore) are not served", [403, 404].includes(await status(".gitignore")));
   ok("server: src/ has no directory listing", (await status("src/")) !== 200);
   ok("server: data/ listing works (the loader needs it)", (await status("data/")) === 200);
-  ok("no secret keys in the config (only the public Supabase anon key is allowed)", !/service_role|secret|token/i.test(JSON.stringify(APP_CONFIG)));
+  ok("no secret keys in the config", !/service_role|secret|token/i.test(JSON.stringify(APP_CONFIG)));
 
   /* Report */
   const all = groups.flatMap(g => g.results), failed = all.filter(r => !r.pass);

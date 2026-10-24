@@ -1,6 +1,7 @@
 /* =====================================================================
    HealthGuideView: public TB Health Guide (symptoms, prevention, where to
-   get checked). General information only; no facilities are listed by name.
+   get checked), shown on the introduction page. General information only;
+   no facilities are listed by name.
    ===================================================================== */
 
 import { $$, icon } from "../utils/dom.js";
@@ -52,11 +53,12 @@ export const HealthGuideView = {
         <p>If you have a cough for two weeks or more, or other symptoms above, visit your <b>barangay health station</b>, your <b>city or municipal health office</b>, or a <b>TB DOTS facility</b>. TB testing and treatment are free in public health facilities in the Philippines. Your barangay health station can tell you where the nearest TB DOTS facility is.</p>
         <p class="notice warn">${icon("i-info")}<span>If you have trouble breathing, cough up a lot of blood or feel very ill, get emergency care right away. The national emergency hotline is <b>911</b>.</span></p>
         <p class="small">Visitors to Metro Manila who feel unwell can go to any public health center or hospital.</p>
+        <p><a class="btn primary" href="#map" data-layer="fac">${icon("i-pin")}Find a TB screening facility</a></p>
       </section>
 
       <section class="g-sec" aria-labelledby="g-com-h">
         <h3 id="g-com-h">For commuters and visitors</h3>
-        <p>Crowded trains, terminals and markets are part of daily life in Metro Manila. Travelling at less busy hours, keeping vehicle windows open where possible and wearing a mask when you are coughing are practical habits. The crowding layer on the map shows a modelled estimate of when places are usually busy; it is not live and it does not label any place as safe or unsafe.</p>
+        <p>Crowded trains, terminals and markets are part of daily life in Metro Manila. Travelling at less busy hours, keeping vehicle windows open where possible and wearing a mask when you are coughing are practical habits. The crowding layer on the map shows BestTime forecasts of when malls are usually busy; it covers malls only, it is not live and it does not label any place as safe or unsafe.</p>
         <p class="remind">Reminder: A busy place is not evidence that TB is spreading there.</p>
       </section>
 

@@ -171,7 +171,8 @@ export const TB_COLORS = ["#CDEFEA", "#86D0C8", "#3AA6B0", "#1F6FA3", "#173F7A"]
 
 export const TB_BREAKS = {
   count: { edges: [1000, 2500, 5000, 10000], labels: ["Under 1,000", "1,000–2,499", "2,500–4,999", "5,000–9,999", "10,000 or more"], short: ["<1k", "1k+", "2.5k+", "5k+", "10k+"] },
-  rate: { edges: [300, 400, 500, 600], labels: ["Under 300", "300–399", "400–499", "500–599", "600 or more"], short: ["<300", "300+", "400+", "500+", "600+"] }
+  /* Per 100,000: city rates run from about 140 (2020) to about 1,240 (2025), so these edges keep every year spread over the classes */
+  rate: { edges: [400, 600, 800, 1000], labels: ["Under 400", "400–599", "600–799", "800–999", "1,000 or more"], short: ["<400", "400+", "600+", "800+", "1k+"] }
 };
 
 export const tbClass = (v, measure) => v == null ? -1 : TB_BREAKS[measure].edges.filter(e => v >= e).length;

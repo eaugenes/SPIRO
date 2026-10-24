@@ -8,3 +8,10 @@ backup/
 # OS files
 .DS_Store
 Thumbs.db
+
+# API keys (BestTime private key for tools/fetch-besttime.ps1). Never commit these.
+.besttime.env
+*.env
+
+# Python bytecode
+__pycache__/

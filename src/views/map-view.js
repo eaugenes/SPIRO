@@ -2,20 +2,21 @@
    MapView: Leaflet map of the Philippines with NCR highlighted.
    Three separate layers, never mixed:
      - TB cases: city choropleth in teal/blue, fixed classes for every year.
-     - Crowding: smooth green-to-red foot-traffic heatmap for the chosen day and hour.
+     - Crowding: green-to-red heatmap of the chosen city's BestTime mall forecasts for the chosen day and hour.
      - Facilities: PhilHealth-accredited TB-DOTS facility pins.
    The view only draws. User actions go to the handlers set by MapController.
    ===================================================================== */
 
-import { OsmFoot } from "../models/foot-traffic-model.js";
-import { CATEGORY, CITIES, CITY, PLACE, PLACES, busyLevel, cityName } from "../models/places-model.js";
+import { Crowd } from "../models/crowd-model.js";
+import { CATEGORY, CITIES, CITY, PLACE, busyLevel, cityMalls, cityName, crowdCity } from "../models/places-model.js";
 import { Prefs } from "../models/settings-model.js";
 import { CITY_LABEL_PT, NCR_GEO, NCR_OUTLINE } from "../models/static-data-model.js";
 import { TB_COLORS, YEARS, tbClass, tbVal, yStatus } from "../models/tb-data-model.js";
 import { $, $$, icon, opt } from "../utils/dom.js";
 import { DOW, esc, fmt, pad2, parseIso, shortNum } from "../utils/format.js";
 import { CROWD_GRADIENT, LEVEL_COLOR, MAP_MEASURE, crowdRGB, tbLegendRows } from "./helpers/map-scales.js";
-import { osmSourceHTML } from "./helpers/source-notes.js";
+import { closedNoticeHTML } from "./helpers/crowd-notice.js";
+import { besttimeSourceHTML } from "./helpers/source-notes.js";
 
 export const PH_BOUNDS = [[4.4, 116.6], [21.3, 127.0]];
 
@@ -129,7 +130,12 @@ export class MapView {
   cityStyle(id) {
     const s = this.model.state, sel = s.selected?.type === "city" && s.selected.id === id;
     if (s.layer === "fac") return this.facCityStyle(id);
-    if (s.layer === "crowd") return { color: sel ? "#0E2A3B" : "#FFFFFF", weight: sel ? 3.2 : 1, opacity: sel ? 1 : 0.8, fillColor: "#000", fillOpacity: 0.001 };
+    /* Cities with forecast malls are shaded so it is clear which ones to pick; the chosen city stays clear so its heatmap shows */
+    if (s.layer === "crowd") {
+      const has = cityMalls(id).length > 0, none = !crowdCity(s.selected);
+      return { color: sel ? "#0E2A3B" : "#FFFFFF", weight: sel ? 3.2 : has ? 1.6 : 1, opacity: sel ? 1 : 0.9, dashArray: has || sel ? null : "4 4",
+        fillColor: has ? "#1F6FA3" : "#000", fillOpacity: sel || !has ? 0.001 : none ? 0.4 : 0.12 };
+    }
     const v = tbVal(id, s.year, MAP_MEASURE), k = tbClass(v, MAP_MEASURE);
     return { color: sel ? "#0E2A3B" : "#FFFFFF", weight: sel ? 3.4 : 1.1, opacity: sel ? 1 : 0.9, dashArray: k < 0 ? "4 4" : null,
       fillColor: k < 0 ? "#9AA6AE" : TB_COLORS[k], fillOpacity: k < 0 ? 0.35 : 0.8 };
@@ -138,11 +144,11 @@ export class MapView {
     const s = this.model.state;
     if (s.layer === "fac") return this.facCityTip(id);
     if (s.layer === "crowd") {
-      const n = PLACES.filter(p => p.city === id).length;
-      return `<b>${esc(cityName(id))}</b><br>${n} listed public place${n === 1 ? "" : "s"} (crowding proxy)`;
+      const n = cityMalls(id).length;
+      return `<b>${esc(cityName(id))}</b><br>${n ? `${n} mall${n === 1 ? "" : "s"} with a BestTime forecast. Select to show them.` : "No BestTime mall forecasts yet"}`;
     }
-    const v = tbVal(id, s.year, MAP_MEASURE);
-    return `<b>${esc(cityName(id))}</b><br>${v == null ? `No data for ${s.year}` : `${fmt(v)} TB cases, ${s.year}`}`;
+    const v = tbVal(id, s.year, MAP_MEASURE), n = tbVal(id, s.year, "count");
+    return `<b>${esc(cityName(id))}</b><br>${v == null ? `No data for ${s.year}` : `${fmt(v)} TB cases per 100,000 people, ${s.year}${n == null ? "" : `<br><small>${fmt(n)} cases in total</small>`}`}`;
   }
 
   /* ---------- crowd heat surface (canvas, clipped to NCR) ---------- */
@@ -157,30 +163,23 @@ export class MapView {
         L.DomUtil.setPosition(c, map.containerPointToLayerPoint([0, 0]));
         c.width = Math.round(size.x * dpr); c.height = Math.round(size.y * dpr); c.style.width = size.x + "px"; c.style.height = size.y + "px";
         const ctx = c.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, size.x, size.y);
-        if (view.model.state.layer !== "crowd") return;
-        /* One continuous surface over all of NCR. Every cell takes the
-           distance-weighted average of the estimated crowding at all listed places
-           (closed = 0%), so colours between places are interpolated, not measured. */
+        /* Only the chosen city, from its BestTime mall forecasts; no city chosen = no surface. */
+        const city = crowdCity(view.model.state.selected);
+        if (view.model.state.layer !== "crowd" || !city) return;
         const S = 4, w = Math.ceil(size.x / S) + 1, h = Math.ceil(size.y / S) + 1;
-        const mpp = 156543.03 * Math.cos(14.6 * Math.PI / 180) / Math.pow(2, map.getZoom());
-        const eps2 = Math.pow(400 / mpp / S, 2);   // 400 m smoothing so a cell on a place is not a hard spike
-        /* With OpenStreetMap places loaded, the surface is the foot-traffic indicator (OsmFoot);
-           until then (or if the download fails) it falls back to the 52 listed places. */
-        const osm = OsmFoot.ready() ? OsmFoot.grid(map, view.model.state, w, h, S) : null;
-        const pts = osm ? [] : PLACES.map(p => { const b = view.model.busyAt(p), q = map.latLngToContainerPoint([p.lat, p.lng]); return [q.x / S, q.y / S, (b == null ? 0 : b) / 100]; });
+        const grid = Crowd.grid(map, view.model.state, cityMalls(city), w, h, S);
         const f = document.createElement("canvas"); f.width = w; f.height = h;
         const fx = f.getContext("2d"), out = fx.createImageData(w, h), o = out.data;
-        for (let y = 0, i = 0; y < h; y++) for (let x = 0; x < w; x++, i++) {
-          let num = 0, den = 0;
-          if (osm) { num = osm[i]; den = 1; }
-          else for (const [px, py, v] of pts) { const d2 = (x - px) * (x - px) + (y - py) * (y - py) + eps2, k = 1 / (d2 * d2); num += v * k; den += k; }
-          const [R, G, B] = crowdRGB(den ? num / den : 0);
-          o[i * 4] = R; o[i * 4 + 1] = G; o[i * 4 + 2] = B; o[i * 4 + 3] = 168;
+        for (let i = 0; i < grid.length; i++) {
+          /* Fade out away from the malls, so places with no forecast are not painted "Low" */
+          const [R, G, B] = crowdRGB(grid[i]);
+          o[i * 4] = R; o[i * 4 + 1] = G; o[i * 4 + 2] = B; o[i * 4 + 3] = Math.round(168 * Math.min(1, grid[i] / 0.08));
         }
         fx.putImageData(out, 0, 0);
         ctx.imageSmoothingEnabled = true; ctx.drawImage(f, 0, 0, w * S, h * S);
+        /* Clip to the chosen city's boundary */
         ctx.globalCompositeOperation = "destination-in"; ctx.fillStyle = "#000"; ctx.beginPath();
-        for (const ft of NCR_GEO.features) for (const poly of ft.geometry.coordinates) for (const ring of poly) {
+        for (const ft of NCR_GEO.features.filter(ft => ft.properties.id === city)) for (const poly of ft.geometry.coordinates) for (const ring of poly) {
           ring.forEach(([x, y], i) => { const q = map.latLngToContainerPoint([y, x]); i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); }); ctx.closePath();
         }
         ctx.fill(); ctx.globalCompositeOperation = "source-over";
@@ -198,7 +197,7 @@ export class MapView {
     /* Caloocan is split in two; label both parts so the name shows wherever you look. */
     this.layers.labels = L.layerGroup([...Object.entries(CITY_LABEL_PT), ["caloocan", [14.6583, 120.9876]]].map(([id, ll]) => {
       const v = s.layer === "tb" ? tbVal(id, s.year, MAP_MEASURE) : null;
-      const val = s.layer === "tb" ? `<em>${v == null ? "No data" : shortNum(v)}</em>` : "";
+      const val = s.layer === "tb" ? `<em>${v == null ? "No data" : MAP_MEASURE === "rate" ? fmt(v) : shortNum(v)}</em>` : "";
       const k = tbClass(v, MAP_MEASURE);
       return L.marker(ll, { pane: "labels", interactive: false, keyboard: false,
         icon: L.divIcon({ className: "city-label", iconSize: [0, 0], html: `<span class="${k >= 3 ? "on-dark" : ""}">${z >= 12 || s.layer !== "tb" ? `<b>${esc(CITY[id].name)}</b>` : ""}${val}</span>` }) });
@@ -210,14 +209,18 @@ export class MapView {
     if (this.layers.places) this.map.removeLayer(this.layers.places);
     this.layers.places = null;
     const s = this.model.state;
-    if (s.layer !== "crowd" || s.selected?.type !== "place") return;
+    /* The chosen city's malls */
+    const city = crowdCity(s.selected);
+    if (s.layer !== "crowd" || !city) return;
+    const shown = cityMalls(city);
     const z = this.map.getZoom(), size = z >= 13 ? 18 : z >= 12 ? 14 : 11;
-    this.layers.places = L.layerGroup(PLACES.filter(p => p.id === s.selected.id).map(p => {
+    this.layers.places = L.layerGroup(shown.map(p => {
       const b = this.model.busyAt(p), lv = busyLevel(b), sel = s.selected?.type === "place" && s.selected.id === p.id;
-      const label = `${p.name}, ${CATEGORY[p.cat].label}. ${b == null ? "Usually closed" : `${lv} (${b}% of its busiest hour)`} on ${DOW[s.day]} at ${pad2(s.hour)}:00. Proxy: assumed typical pattern for this type of place, not measured.`;
+      const src = "BestTime forecast for a typical week, not live.";
+      const label = `${p.name}, ${CATEGORY[p.cat].label}. ${b == null ? "Usually closed" : `${lv} (${b}% of its busiest hour)`} on ${DOW[s.day]} at ${pad2(s.hour)}:00. ${src}`;
       const mk = L.marker([p.lat, p.lng], { keyboard: true, title: label, alt: label, riseOnHover: true, zIndexOffset: sel ? 900 : 300,
         icon: L.divIcon({ className: "pm-wrap", iconSize: [size, size], html: `<span class="pm${sel ? " on" : ""}" style="--c:${LEVEL_COLOR[lv]}"></span>` }) });
-      mk.bindTooltip(`<b>${esc(p.name)}</b><br>${esc(CATEGORY[p.cat].label)} · ${esc(CITY[p.city].name)}<br>${b == null ? "Usually closed at this hour" : `${lv}: ${b}% of its busiest hour`}<br><small>Proxy: typical pattern for a ${esc(CATEGORY[p.cat].label.toLowerCase())}. Not measured, not live.</small>`, { className: "tt", direction: "top", offset: [0, -size / 2] });
+      mk.bindTooltip(`<b>${esc(p.name)}</b><br>${esc(CATEGORY[p.cat].label)} · ${esc(CITY[p.city].name)}<br>${b == null ? "Usually closed at this hour" : `${lv}: ${b}% of its busiest hour`}<br><small>${esc(src)}</small>`, { className: "tt", direction: "top", offset: [0, -size / 2] });
       mk.on("click", () => this.handlers.onSelect({ type: "place", id: p.id }));
       return mk;
     })).addTo(this.map);
@@ -237,15 +240,11 @@ export class MapView {
   render(changed) {
     const c = new Set(changed);
     if (["layer", "year", "isAdmin"].some(k => c.has(k))) this.renderLayerBar();
-    if (["layer", "year", "day", "hour", "date", "minute", "second"].some(k => c.has(k))) this.renderLegend();
+    else if (c.has("hour") || c.has("minute")) this.syncTime();
+    /* The crowding legend names the chosen city, so it also follows the selection */
+    if (["layer", "year", "day", "hour", "date", "minute", "second"].some(k => c.has(k)) || (c.has("selected") && this.model.state.layer === "crowd")) this.renderLegend();
     if (["layer", "year", "day", "hour", "selected"].some(k => c.has(k))) this.draw();
-    /* The first time the crowding layer opens, download the OpenStreetMap places; redraw when they arrive. */
-    if (this.model.state.layer === "crowd") OsmFoot.ensure(() => this.onOsmChange());
   }
-
-  /* OpenStreetMap places finished loading (or failed): redraw the surface and legend, and let
-     the controller refresh the open card (it shows "foot traffic around here"). */
-  onOsmChange() { this.draw(); this.renderLegend(); this.handlers.onOsmChange?.(); }
 
   /* ---------- legend (bottom right) ---------- */
   /* Legend: only the keys, always fully shown, compact: no sources, no NCR
@@ -259,32 +258,42 @@ export class MapView {
       const n = Array(TB_COLORS.length + 1).fill(0);
       if (!empty) for (const c of CITIES) { const k = tbClass(tbVal(c.id, s.year, MAP_MEASURE), MAP_MEASURE); n[k < 0 ? TB_COLORS.length : k]++; }
       const row = (sw, label, x) => `<li>${sw}<span>${label}</span><span class="lg-n num" title="${x} of 17 cities">${x}</span></li>`;
-      h = `<h3 class="lg-title">Notified TB cases, ${s.year}</h3>
+      h = `<h3 class="lg-title">TB cases per 100,000 people, ${s.year}</h3>
         ${empty ? `<p class="lg-note">No data for ${s.year}.</p>` : `<ul class="lg-classes">${tbLegendRows(MAP_MEASURE).map((r, i) => row(`<span class="sw" style="background:${r.color}"></span>`, r.long, n[i])).join("")}${row('<span class="sw sw-na"></span>', "No data", n[TB_COLORS.length])}</ul>`}
         ${!empty && st.label !== "Full year" ? `<p class="lg-note">${esc(st.label)}</p>` : ""}`;
     } else {
       const lv = [["Low", "under 40%"], ["Moderate", "40–69%"], ["High", "70–89%"], ["Very high", "90%+"]];
-      const st = OsmFoot.status(), ok = st.state === "ok";
-      h = `<h3 class="lg-title">${ok ? "Foot traffic (OpenStreetMap)" : "Crowding (estimated)"}</h3>
+      const city = crowdCity(s.selected), n = city ? cityMalls(city).length : 0;
+      h = `<h3 class="lg-title">Mall crowding (BestTime)</h3>
         <div class="lg-grad" style="background:${CROWD_GRADIENT}"></div>
         <ul class="lg-ticks">${[0, 40, 70, 90].map(t => `<li style="left:${t}%">${t}%</li>`).join("")}</ul>
         <ul class="lg-classes">${lv.map(([k, t]) => `<li><span class="sw" style="background:${LEVEL_COLOR[k]}"></span><span>${k}</span><span class="lg-n">${t}</span></li>`).join("")}</ul>
-        ${ok ? `<p class="lg-note">Built from ${fmt(st.n)} OpenStreetMap places that draw foot traffic (malls, markets, stations, schools, places of worship), weighted by type and typical hour. 100% = the busiest 5% of NCR. Not counted, not live.</p>
-          <p class="lg-src">${osmSourceHTML(st)}</p>`
-        : st.state === "loading" || st.state === "idle" ? `<p class="lg-note">Downloading foot-traffic places from OpenStreetMap…</p>`
-        : `<p class="lg-note">OpenStreetMap places could not be downloaded${st.error ? ` (${esc(st.error)})` : ""}, so this shows the typical-week estimate for ${PLACES.length} listed places. <button type="button" class="link" id="osmRetry">Try again</button></p>`}`;
+        ${Crowd.ready() && (!city || n) ? closedNoticeHTML(city, s) : ""}
+        ${!Crowd.ready() ? `<p class="lg-note">No BestTime mall forecasts are loaded. Run tools/fetch-besttime.ps1 (see docs/foot-traffic.md).</p>`
+        : !city ? `<p class="lg-note"><b>Pick a city</b> on the map or in the search box to see its malls. Shaded cities have mall forecasts (${Crowd.count()} malls across NCR).</p>`
+        : n ? `<p class="lg-note">${n} mall${n === 1 ? "" : "s"} in ${esc(CITY[city].name)}, each from its own BestTime forecast for a typical ${DOW[s.day]}, weighted by its size (Google reviews). 100% = the busiest 5% of NCR's malls. Not live.</p>`
+        : `<p class="lg-note">BestTime has no mall forecasts for ${esc(CITY[city].name)} yet.</p>`}
+        ${Crowd.ready() ? `<p class="lg-src">${besttimeSourceHTML()}</p>` : ""}`;
     }
     $("#legend").innerHTML = h;
-    $("#osmRetry")?.addEventListener("click", () => { OsmFoot.retry(() => this.onOsmChange()); this.renderLegend(); });
+    $$("[data-jump-hour]", $("#legend")).forEach(b => b.addEventListener("click", () => this.handlers.onTime(+b.dataset.jumpHour, 0, 0)));
+  }
+
+  /* Show the model's time in the time field and hour/minute lists (after a change from outside the panel) */
+  syncTime() {
+    const s = this.model.state, v = $("#lbTimeVal"); if (!v) return;
+    v.textContent = `${pad2(s.hour)}:${pad2(s.minute)}`; $("#lbTime").setAttribute("aria-label", `Time ${pad2(s.hour)}:${pad2(s.minute)}, change`);
+    $$("#lbH [data-h]").forEach(b => b.setAttribute("aria-selected", String(+b.dataset.h === s.hour)));
+    $$("#lbM [data-m]").forEach(b => b.setAttribute("aria-selected", String(+b.dataset.m === s.minute)));
   }
 
   /* Shown when the map library cannot load: the same city-level records as a table, no map. */
   renderFallback() {
-    const y = this.model.state.year, rows = CITIES.map(c => [cityName(c.id), tbVal(c.id, y, MAP_MEASURE)]);
+    const y = this.model.state.year, rows = CITIES.map(c => [cityName(c.id), tbVal(c.id, y, MAP_MEASURE), tbVal(c.id, y, "count")]);
     const any = rows.some(r => r[1] != null);
-    $("#mapFallback").innerHTML = `<div class="fb-inner"><h2>Notified TB cases by city, ${y}</h2>
-      ${any ? `<table class="fb-table"><thead><tr><th scope="col">City or municipality</th><th scope="col" class="num">Notified TB cases</th></tr></thead>
-      <tbody>${rows.map(([n, v]) => `<tr><td>${esc(n)}</td><td class="num">${v == null ? "No data" : fmt(v)}</td></tr>`).join("")}</tbody></table>
+    $("#mapFallback").innerHTML = `<div class="fb-inner"><h2>TB cases per 100,000 people by city, ${y}</h2>
+      ${any ? `<table class="fb-table"><thead><tr><th scope="col">City or municipality</th><th scope="col" class="num">Per 100,000</th><th scope="col" class="num">Notified TB cases</th></tr></thead>
+      <tbody>${rows.map(([n, v, c]) => `<tr><td>${esc(n)}</td><td class="num">${v == null ? "No data" : fmt(v)}</td><td class="num">${c == null ? "No data" : fmt(c)}</td></tr>`).join("")}</tbody></table>
       <p class="xs muted">Whole-city totals from cleaned_tb_data.csv. No map is drawn, so no locations are implied.</p>`
       : `<p class="small muted">${esc(yStatus(y).note)}</p>`}</div>`;
   }

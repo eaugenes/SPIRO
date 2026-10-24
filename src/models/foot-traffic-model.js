@@ -23,9 +23,14 @@ export const OsmFoot = (() => {
     nwr["public_transport"="station"](${BBOX});
   );out center tags;`;
   const g = (h, mu, s) => Math.exp(-((h - mu) ** 2) / (2 * s * s));
-  /* Type, assumed relative pull at its busiest hour, opening hours, and typical-day shape. */
+  /* Type, assumed relative pull at its busiest hour, opening hours, and typical-day shape.
+     Sources (see docs/foot-traffic.md):
+     - rail and bus: weekday peaks 7–9 AM and 5–7 PM, the MRT-3 peak periods reported by Camus (2014).
+     - mall: weekend daily visits about 1.5 times weekday (ratio 1.51, Palmiano, Kurokawa & Sigua, 1999);
+       the weekend curve is scaled so its daily total is 1.51 times the weekday total.
+     - market, college, supermarket, school, worship: no published hourly figures found; stated assumptions. */
   const TYPES = {
-    mall: { label: "Malls and department stores", w: 10, open: [10, 22], f: (h, we, d) => we ? .45 + .9 * g(h, 15.5, 3) : (.25 + .45 * g(h, 13, 2.5) + .75 * g(h, 18.5, 2)) * (d === 5 && h >= 17 ? 1.12 : 1) },
+    mall: { label: "Malls and department stores", w: 10, open: [10, 22], f: (h, we, d) => we ? 1.16 * (.45 + .9 * g(h, 15.5, 3)) : (.25 + .45 * g(h, 13, 2.5) + .75 * g(h, 18.5, 2)) * (d === 5 && h >= 17 ? 1.12 : 1) },
     rail: { label: "Train stations", w: 9, open: [5, 23], f: (h, we) => we ? .15 + .55 * g(h, 15, 4) : .22 + 1.0 * g(h, 7.5, 1.3) + .95 * g(h, 18, 1.5) },
     market: { label: "Public markets", w: 7, open: [4, 20], f: (h, we) => we ? .2 + 1.0 * g(h, 7.5, 2.2) + .45 * g(h, 16, 2) : .15 + .9 * g(h, 7, 2) + .4 * g(h, 17, 2) },
     bus: { label: "Bus terminals and other stations", w: 5, open: [4, 23], f: (h, we) => we ? .15 + .55 * g(h, 15, 4) : .22 + 1.0 * g(h, 7.5, 1.3) + .95 * g(h, 18, 1.5) },

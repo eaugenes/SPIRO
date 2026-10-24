@@ -24,12 +24,12 @@
   "model_name": "ridge_mean_reversion_log_ratio",
   "baseline_name": "persistence (predict previous year's observed case_rate_per_100k)",
   "validation_method": "Rolling-origin (expanding window) by year: for each test year in 2023, 2024, 2025, train on all consecutive-year transitions with target year < test year; metrics pooled over the three test years on the case_rate_per_100k scale.",
-  "training_rows": 83,
+  "training_rows": 117,
   "testing_rows": 49,
   "metrics": {
-    "mae": 96.912,
-    "rmse": 135.782,
-    "r2": 0.2508
+    "mae": 97.003,
+    "rmse": 135.54,
+    "r2": 0.2535
   },
   "baseline_metrics": {
     "mae": 95.493,
@@ -37,7 +37,7 @@
     "r2": 0.2466
   },
   "limitations": [
-    "Very small dataset: 17 NCR LGUs x 7 observed years (2018, 2020-2025); 2019 data was not supplied, so only 5 consecutive-year transitions exist (83 modelling rows after exclusions).",
+    "Very small dataset: 17 NCR LGUs x 8 observed years (2018-2025), so only 7 consecutive-year transitions exist (117 modelling rows after exclusions).",
     "The model does NOT outperform the persistence baseline on pooled MAE; predictions should be treated as roughly equivalent to 'next year looks like this year, nudged slightly toward the NCR average'.",
     "Model configuration (no intercept, single mean-reversion feature, alpha=5) was chosen after comparing several Ridge variants on the same 2023-2025 test years, so reported metrics are optimistic. Ridge models with an intercept or lagged-growth features performed substantially worse than persistence.",
     "2020-2022 notifications were heavily disrupted by COVID-19 (drop then rebound); these transitions are in the training data and the model cannot represent such shocks.",
@@ -50,11 +50,11 @@
   ],
   "notes": [
     "Model: Ridge regression (scikit-learn, alpha=5, fit_intercept=False). Target = log(rate_t / rate_{t-1}). Feature = log(rate_{t-1}) minus the NCR cross-LGU mean of log(rate_{t-1}). Prediction = rate_{t-1} * exp(coef * feature).",
-    "Final fitted coefficient on the mean-reversion feature: -0.1744 (negative = LGUs above the NCR average are predicted to move toward it).",
-    "Final model trained on all 83 transitions with target years 2021-2025; predictions are for calendar year 2026 for the 17 NCR LGUs only. NCR region-level, barangay-level and other periods are not predicted.",
-    "Per-test-year results: {\"2023\": {\"model\": {\"mae\": 131.878, \"rmse\": 186.316, \"r2\": -1.1427}, \"persistence\": {\"mae\": 132.202, \"rmse\": 190.448, \"r2\": -1.2388}, \"train_rows\": 34, \"test_rows\": 17}, \"2024\": {\"model\": {\"mae\": 89.595, \"rmse\": 104.509, \"r2\": 0.3397}, \"persistence\": {\"mae\": 94.005, \"rmse\": 112.537, \"r2\": 0.2344}, \"train_rows\": 51, \"test_rows\": 15}, \"2025\": {\"model\": {\"mae\": 68.402, \"rmse\": 93.757, \"r2\": 0.7706}, \"persistence\": {\"mae\": 60.097, \"rmse\": 77.417, \"r2\": 0.8436}, \"train_rows\": 66, \"test_rows\": 17}}",
+    "Final fitted coefficient on the mean-reversion feature: -0.1786 (negative = LGUs above the NCR average are predicted to move toward it).",
+    "Final model trained on all 117 transitions with target years 2019-2025; predictions are for calendar year 2026 for the 17 NCR LGUs only. NCR region-level, barangay-level and other periods are not predicted.",
+    "Per-test-year results: {\"2023\": {\"model\": {\"mae\": 132.014, \"rmse\": 185.758, \"r2\": -1.1299}, \"persistence\": {\"mae\": 132.202, \"rmse\": 190.448, \"r2\": -1.2388}, \"train_rows\": 68, \"test_rows\": 17}, \"2024\": {\"model\": {\"mae\": 89.623, \"rmse\": 104.463, \"r2\": 0.3403}, \"persistence\": {\"mae\": 94.005, \"rmse\": 112.537, \"r2\": 0.2344}, \"train_rows\": 85, \"test_rows\": 15}, \"2025\": {\"model\": {\"mae\": 68.503, \"rmse\": 93.901, \"r2\": 0.7699}, \"persistence\": {\"mae\": 60.097, \"rmse\": 77.417, \"r2\": 0.8436}, \"train_rows\": 100, \"test_rows\": 17}}",
     "Observed data source: case_rate_per_100k in cleaned_tb_data.csv (notified TB, all forms / projected population x 100,000).",
-    "Run identifier: 2026-10-24T02:44:52+00:00_b4e7aa486b8b (generated_at plus the first 12 hex digits of the SHA-256 of the input cleaned_tb_data.csv). The fitted model is not saved as a file: it has one coefficient (above) and is reproduced exactly by re-running model.py on the same input.",
-    "Generated at 2026-10-24T02:44:52+00:00."
+    "Run identifier: 2026-10-24T14:53:13+00:00_d140a5ce86bb (generated_at plus the first 12 hex digits of the SHA-256 of the input cleaned_tb_data.csv). The fitted model is not saved as a file: it has one coefficient (above) and is reproduced exactly by re-running model.py on the same input.",
+    "Generated at 2026-10-24T14:53:13+00:00."
   ]
 }

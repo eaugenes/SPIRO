@@ -17,13 +17,13 @@ export class MapController {
       onYear: year => this.model.set({ year }),
       onDate: date => this.model.set({ date, day: parseIso(date).getDay() }),
       onTime: (hour, minute, second) => this.model.set({ hour, minute, second }),
-      onSelect: sel => this.select(sel, false),
-      onOsmChange: () => this.placeView.render()
+      onSelect: sel => this.select(sel, false)
     });
     this.placeView.init({
       onClose: () => this.clear(),
       onSelect: sel => this.select(sel, true),
-      onNavigate: route => this.app.navigate(route)
+      onNavigate: route => this.app.navigate(route),
+      onTime: (hour, minute, second) => this.model.set({ hour, minute, second })
     });
   }
 

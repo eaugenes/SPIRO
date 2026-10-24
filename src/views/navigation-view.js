@@ -16,6 +16,7 @@ export class NavigationView {
     this.handlers = handlers;
     $("#navBtn").addEventListener("click", () => handlers.onToggleNav());
     $("#navScrim").addEventListener("click", () => handlers.onCloseNav());
+    $("#topLogout").addEventListener("click", () => handlers.onLogout());
     this.renderSearch();
     this.render(["navOpen", "isAdmin", "route"]);
   }
@@ -23,8 +24,25 @@ export class NavigationView {
   render(changed) {
     const c = new Set(changed), s = this.model.state;
     if (c.has("isAdmin") || c.has("route") || c.has("navOpen")) this.renderPanel();
+    if (c.has("isAdmin") || c.has("route") || c.has("adminTab")) this.renderAdminBox();
     if (c.has("navOpen")) this.setOpen(s.navOpen);
   }
+
+  /* LGU Admin card in the map's left column: visible only when logged in, one click to each admin page.
+     While logged in, the Log out button takes the SPIRO logo's place in the top-right corner. */
+  renderAdminBox() {
+    const s = this.model.state, box = $("#adminBox");
+    box.hidden = !s.isAdmin;
+    $(".logo-ph[href]").hidden = s.isAdmin; $("#topLogout").hidden = !s.isAdmin;
+    if (!s.isAdmin) { box.innerHTML = ""; return; }
+    const cur = s.route === "admin" ? s.adminTab : null;
+    const item = (tab, ic, label, sub) => `<a class="adm-item${cur === tab ? " on" : ""}" href="#admin/${tab}" data-route="admin/${tab}"${cur === tab ? ' aria-current="page"' : ""}>${icon(ic)}<span><b>${label}</b><small>${sub}</small></span></a>`;
+    box.innerHTML = `<div class="adm-head"><h2 class="ctrl-title" id="adminBoxTitle">LGU Admin</h2></div>
+      <div class="adm-list">
+        ${item("tb", "i-chart", "TB history", "Cases and rates by year")}
+        ${item("crowd", "i-people", "Crowding report", "Busy hours by mall")}
+      </div>`;
+    $$("[data-route]", box).forEach(a => a.addEventListener("click", e => { e.preventDefault(); this.handlers.onNavigate(a.dataset.route); }));  }
 
   renderPanel() {
     const s = this.model.state, cur = s.route === "admin" ? "admin/" + s.adminTab : s.route, v = Prefs.current;
@@ -37,8 +55,8 @@ export class NavigationView {
       </div>
       <div class="np-group">
         <p class="np-label">Pages</p>
+        ${item("intro", "i-book", "Home", "TB Health Guide and quick links")}
         ${item("map", "i-map", "Map", "TB cases and crowding")}
-        ${item("guide", "i-book", "TB Health Guide", "Symptoms, prevention, getting checked")}
       </div>
       <div class="np-group">
         <p class="np-label">Display</p>
@@ -48,9 +66,7 @@ export class NavigationView {
       <div class="np-group">
         ${s.isAdmin ? `
           <p class="np-label">Admin</p>
-          ${item("admin/tb", "i-chart", "TB history", "Cases and rates by year")}
-          ${item("admin/crowd", "i-people", "Crowding report", "Busy hours by place")}
-          <button type="button" class="np-item" id="npLogout">${icon("i-logout")}<span><b>Log out</b></span></button>`
+          <p class="np-note">Logged in. The LGU Admin tools are in the left panel of the map.</p>`
         : `<button type="button" class="btn np-login" id="npLogin">Log In</button>`}
       </div>`;
     const p = $("#navPanel");
@@ -58,19 +74,17 @@ export class NavigationView {
     $$("[data-route]", p).forEach(a => a.addEventListener("click", e => { e.preventDefault(); this.handlers.onNavigate(a.dataset.route); }));
     const upd = () => this.handlers.onPrefs({ theme: $("#setTheme").value, labels: $("#setLabels").checked });
     ["#setTheme", "#setLabels"].forEach(id => $(id).addEventListener("change", upd));
-    $("#npLogin")?.addEventListener("click", () => this.handlers.onLogin());
-    $("#npLogout")?.addEventListener("click", () => this.handlers.onLogout());
-  }
+    $("#npLogin")?.addEventListener("click", () => this.handlers.onLogin());  }
 
-  /* Search box in the top bar. Same sources as before: cities with TB records in
-     cleaned_tb_data.csv, plus the listed public places. */
+  /* Search box in the top bar: cities with TB records in cleaned_tb_data.csv, the malls
+     with a BestTime forecast (crowding layer) and the TB-DOTS facilities. */
   renderSearch() {
-    /* Cities first, then listed public places. Each row shows the name and its address as far
-       as the data goes (city, Metro Manila); the place list has no street addresses. */
+    /* Cities first, then malls, then facilities. Each row shows the name and its address as far
+       as the data goes (city, Metro Manila); malls show no street address. */
     const NCR_ADDR = "Metro Manila (NCR), Philippines";
     const cities = CITIES.map(c => ({ name: cityName(c.id), addr: NCR_ADDR, group: "City / municipality", sel: { type: "city", id: c.id } }))
       .sort((a, b) => a.name.localeCompare(b.name));
-    const places = PLACES.map(p => ({ name: p.name, addr: `${CATEGORY[p.cat].label} · ${cityName(p.city)}, ${NCR_ADDR}`, group: "Public place", sel: { type: "place", id: p.id } }))
+    const places = PLACES.map(p => ({ name: p.name, addr: `${CATEGORY[p.cat].label} · ${cityName(p.city)}, ${NCR_ADDR}`, group: "Mall", sel: { type: "place", id: p.id } }))
       .sort((a, b) => cityName(PLACE[a.sel.id].city).localeCompare(cityName(PLACE[b.sel.id].city)) || a.name.localeCompare(b.name));
     const facs = FAC.map(f => ({ name: facName(f), addr: `${FAC_KIND[f.k].label} · ${facAddress(f)}`, group: "TB facility", sel: { type: "fac", id: String(f.id) } }))
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -84,26 +98,26 @@ export class NavigationView {
       const score = o => { const a = norm(o.name), b = norm(o.addr); return a.startsWith(n) ? 0 : a.split(/[\s(-]+/).some(w => w.startsWith(n)) ? 1 : a.includes(n) ? 2 : b.includes(n) ? 3 : -1; };
       return this.findIndex.map((o, i) => [o, score(o), i]).filter(x => x[1] >= 0).sort((x, y) => (GROUP_RANK[x[0].group] - GROUP_RANK[y[0].group]) || x[1] - y[1] || x[2] - y[2]).map(x => x[0]).slice(0, 12);
     };
-    const GROUP_RANK = { "City / municipality": 0, "Public place": 1, "TB facility": 2 };
+    const GROUP_RANK = { "City / municipality": 0, "Mall": 1, "TB facility": 2 };
     const box = inp.closest(".top-search");
     const close = () => { list.hidden = true; box.classList.remove("open"); inp.setAttribute("aria-expanded", "false"); inp.removeAttribute("aria-activedescendant"); act = -1; };
     const hl = t => { const q = inp.value.trim(); if (!q) return esc(t); const i = norm(t).indexOf(norm(q)); return i < 0 ? esc(t) : esc(t.slice(0, i)) + "<mark>" + esc(t.slice(i, i + q.length)) + "</mark>" + esc(t.slice(i + q.length)); };
     const paint = () => {
       let g = "";
       list.innerHTML = hits.map((o, i) => {
-        const head = o.group !== g ? `<li class="ts-group" role="presentation">${o.group === "Public place" ? "Public places" : o.group === "TB facility" ? "TB Screening Facilities" : "Cities and municipality"}</li>` : ""; g = o.group;
+        const head = o.group !== g ? `<li class="ts-group" role="presentation">${o.group === "Mall" ? "Malls (crowding forecasts)" : o.group === "TB facility" ? "TB Screening Facilities" : "Cities and municipality"}</li>` : ""; g = o.group;
         return `${head}<li role="option" id="tsOpt${i}" data-i="${i}" aria-selected="${i === act}" class="ts-opt${i === act ? " on" : ""}">${icon(o.sel.type === "city" ? "i-map" : o.sel.type === "fac" ? "i-building" : "i-pin")}<span><b>${hl(o.name)}</b><small>${esc(o.addr)}</small></span></li>`;
       }).join("");
       list.hidden = !hits.length; box.classList.toggle("open", !!hits.length); inp.setAttribute("aria-expanded", String(!!hits.length));
       if (act >= 0) { inp.setAttribute("aria-activedescendant", "tsOpt" + act); $("#tsOpt" + act)?.scrollIntoView({ block: "nearest" }); } else inp.removeAttribute("aria-activedescendant");
     };
-    const suggest = () => { msg.hidden = true; hits = match(inp.value.trim()); act = -1; paint(); if (!hits.length && inp.value.trim()) { msg.textContent = "No matching city, place or facility."; msg.hidden = false; } };
+    const suggest = () => { msg.hidden = true; hits = match(inp.value.trim()); act = -1; paint(); if (!hits.length && inp.value.trim()) { msg.textContent = "No matching city, mall or facility."; msg.hidden = false; } };
     const pick = o => { inp.value = o.name; close(); inp.blur(); this.handlers.onFind(o.sel); };
     inp.addEventListener("input", suggest);
     inp.addEventListener("focus", suggest);
     inp.addEventListener("keydown", e => {
       if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); if (list.hidden) suggest(); if (!hits.length) return; act = (act + (e.key === "ArrowDown" ? 1 : -1) + hits.length) % hits.length; paint(); }
-      else if (e.key === "Enter") { e.preventDefault(); const o = hits[act >= 0 ? act : 0]; if (o) pick(o); else if (inp.value.trim()) { msg.textContent = "No matching city, place or facility."; msg.hidden = false; } }
+      else if (e.key === "Enter") { e.preventDefault(); const o = hits[act >= 0 ? act : 0]; if (o) pick(o); else if (inp.value.trim()) { msg.textContent = "No matching city, mall or facility."; msg.hidden = false; } }
       else if (e.key === "Escape") { if (!list.hidden) close(); else { inp.value = ""; msg.hidden = true; } }
     });
     list.addEventListener("mousedown", e => e.preventDefault());
@@ -112,7 +126,7 @@ export class NavigationView {
   }
 
   /* Cities come only from cleaned_tb_data.csv (cities with at least one valid case
-     count). Public places are the modelled crowding layer's places and are listed as such. */
+     count). Malls are the crowding layer's places, each with a BestTime forecast. */
   setOpen(open) {
     const p = $("#navPanel"), btn = $("#navBtn");
     p.hidden = !open; $("#navScrim").hidden = !open;

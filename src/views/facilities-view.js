@@ -1,7 +1,7 @@
 /* Facilities view: pins, facility cards, the left-column panel and the legend for the
    TB Screening Facilities layer. It adds methods to MapView and PlaceDetailsView (a mixin),
    so those classes stay focused on the TB and crowding layers. */
-import { FAC, FAC_BY, FAC_FILTER, FAC_GROUP, FAC_GROUPS, FAC_KIND, FAC_META, FAC_PAST, FAC_SECTOR, facAddress, facColor, facDirections, facIsoLabel, facName, facStatus, facVisible } from "../models/facilities-model.js";
+import { FAC, FAC_BY, FAC_FILTER, FAC_GROUP, FAC_GROUPS, FAC_KIND, FAC_META, FAC_PAST, FAC_SECTOR, facAddress, facColor, facDirections, facIsoLabel, facName, facPin, facStatus, facVisible } from "../models/facilities-model.js";
 import { cityName } from "../models/places-model.js";
 import { $$, icon } from "../utils/dom.js";
 import { esc } from "../utils/format.js";
@@ -35,12 +35,12 @@ MapView.prototype.drawFacilities = function () {
     const anyOk = fs.some(f => facStatus(f).ok), gov = fs.filter(f => f.g === "G").length;
     const color = !anyOk ? FAC_PAST : gov >= fs.length - gov ? FAC_SECTOR.G.color : FAC_SECTOR.P.color;
     const sel = selKey === g.key;
-    const label = fs.length === 1 ? `${facName(fs[0])}, ${FAC_KIND[fs[0].k].label}, ${FAC_SECTOR[fs[0].g].label}. Barangay ${g.b}.` : `${fs.length} TB-DOTS facilities in ${g.b}, ${cityName(g.city)}.`;
+    const label = fs.length === 1 ? `${facName(fs[0])}, ${FAC_KIND[fs[0].k].label}, ${FAC_SECTOR[fs[0].g].label}. ${/^barangay/i.test(g.b) || fs[0].pp === "district" ? g.b : "Barangay " + g.b}.` : `${fs.length} TB-DOTS facilities in ${g.b}, ${cityName(g.city)}.`;
     const mk = L.marker([g.lat, g.lng], { keyboard: true, title: label, alt: label, riseOnHover: true, zIndexOffset: sel ? 1000 : fs.length > 1 ? 400 : 300,
       icon: L.divIcon({ className: "fp-wrap", iconSize: [size, size * 1.25], iconAnchor: [size / 2, size * 1.2],
         html: `<span class="fp${sel ? " on" : ""}${anyOk ? "" : " past"}" style="--c:${color};--s:${size}px">${big ? icon(FAC_KIND[lead.k].icon) : ""}${fs.length > 1 ? `<b>${fs.length}</b>` : ""}</span>` }) });
-    mk.bindTooltip(fs.length === 1 ? `<b>${esc(facName(fs[0]))}</b><br>${esc(FAC_KIND[fs[0].k].label)} · ${esc(FAC_SECTOR[fs[0].g].label)}<br><small>Pin: centre of ${esc(g.b)}, not the exact building</small>`
-      : `<b>${fs.length} facilities</b> in ${esc(g.b)}, ${esc(cityName(g.city))}<br><small>Pin: barangay centre</small>`, { className: "tt", direction: "top", offset: [0, -size] });
+    mk.bindTooltip(fs.length === 1 ? `<b>${esc(facName(fs[0]))}</b><br>${esc(FAC_KIND[fs[0].k].label)} · ${esc(FAC_SECTOR[fs[0].g].label)}<br><small>Pin: ${esc(facPin(fs[0]).short)}</small>`
+      : `<b>${fs.length} facilities</b> in ${esc(g.b)}, ${esc(cityName(g.city))}<br><small>Pin: ${esc(facPin(fs[0]).short)}</small>`, { className: "tt", direction: "top", offset: [0, -size] });
     mk.on("click", () => this.handlers.onSelect(fs.length === 1 ? { type: "fac", id: String(fs[0].id) } : { type: "facgrp", id: g.key }));
     pins.push(mk);
   }
@@ -62,7 +62,7 @@ Object.assign(PlaceDetailsView.prototype, {
           <dt>TB services</dt><dd>TB-DOTS clinic (TB treatment under the DOTS strategy), PhilHealth-accredited</dd>
           <dt>Phone</dt><dd>${f.t ? facPhone(f.t) : `<span class="muted">Not provided in the list</span>`}</dd>
           <dt>Email</dt><dd>${f.em ? f.em.split(" / ").map(e => `<a href="mailto:${esc(e)}">${esc(e)}</a>`).join("<br>") : `<span class="muted">Not provided in the list</span>`}</dd>
-          <dt>Map pin</dt><dd>${g ? `Centre of ${esc(f.b)}, matched from the address. Not the exact building.` : `<span class="muted">Not on the map: the address could not be matched to a barangay.</span>`}</dd>
+          <dt>Map pin</dt><dd>${g ? esc(facPin(f).long) : `<span class="muted">Not on the map: the address could not be matched to a barangay.</span>`}</dd>
         </dl>
         <a class="btn fc-dir" href="${facDirections(f)}" target="_blank" rel="noopener">${icon("i-arrow")}Get directions</a>
         ${g && g.ids.length > 1 ? `<button type="button" class="link fc-back" data-fac="${g.key}" data-factype="facgrp">${g.ids.length} facilities share this pin</button>` : ""}
@@ -78,7 +78,7 @@ Object.assign(PlaceDetailsView.prototype, {
     const g = FAC_GROUP[key], fs = g.ids.map(id => FAC_BY[id]);
     return `${this.head("TB-DOTS facilities", `${g.b}, ${cityName(g.city)}`)}
       <section class="pc-sec fc">
-        <p class="small muted">${fs.length} facilities were matched to this barangay, so they share one pin at its centre. Select one for details.</p>
+        <p class="small muted">${fs.length} facilities share this pin (${esc(facPin(fs[0]).short)}). Select one for details.</p>
         <ul class="fc-list">${fs.map(f => this.facRow(f)).join("")}</ul>
         ${this.facSrc(null)}
       </section>`;
@@ -89,7 +89,7 @@ Object.assign(PlaceDetailsView.prototype, {
     miss.forEach(f => (by[f.c] = by[f.c] || []).push(f));
     return `${this.head("TB-DOTS facilities", "Not on the map")}
       <section class="pc-sec fc">
-        <p class="small muted">${miss.length} listed facilities have no pin because their address could not be matched to a barangay${by.manila ? " (barangay boundaries for the City of Manila are not available in this build)" : ""}. Their details and directions still work.</p>
+        <p class="small muted">${miss.length} listed facilities have no pin because their address could not be matched to a barangay. Their details and directions still work.</p>
         ${Object.entries(by).sort((a, b) => cityName(a[0]).localeCompare(cityName(b[0]))).map(([c, fs]) => `<h3 class="fc-h">${esc(cityName(c))} <span class="muted">(${fs.length})</span></h3><ul class="fc-list">${fs.map(f => this.facRow(f)).join("")}</ul>`).join("")}
         ${this.facSrc(null)}
       </section>`;
@@ -129,7 +129,7 @@ Object.assign(MapView.prototype, {
         ${past ? `<li>${pin(FAC_PAST)}<span>Expired</span><span class="lg-n num">${FAC.filter(f => !facStatus(f).ok).length}</span></li>` : ""}
       </ul>
       <ul class="lg-classes lg-kinds">${["hospital", "center", "clinic"].map(k => `<li>${pin("#5E6E78", FAC_KIND[k].icon)}<span>${FAC_KIND[k].label}</span></li>`).join("")}</ul>
-      <p class="lg-note">A number on a pin = facilities sharing one barangay. PhilHealth list, ${facIsoLabel(FAC_META.updated)}.</p>`;
+      <p class="lg-note">A number on a pin = facilities sharing one position. PhilHealth list, ${facIsoLabel(FAC_META.updated)}.</p>`;
   },
   facCityStyle(id) {
     const sel = this.model.state.selected?.type === "city" && this.model.state.selected.id === id;

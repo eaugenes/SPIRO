@@ -1,6 +1,6 @@
 # Architecture
 
-SPIRO is a static website: HTML, CSS and JavaScript in the browser, with data read from files in `data/`. There is no server code of its own. User accounts (sign-up and log-in) are handled by Supabase Auth; SPIRO never stores passwords. `serve.ps1` is a small local web server for development.
+SPIRO is a static website: HTML, CSS and JavaScript in the browser, with data read from files in `data/`. There is no server code of its own. There is one admin log-in for LGUs and no sign-up; the username and password are checked in the browser. `serve.ps1` is a small local web server for development.
 
 The JavaScript uses native ES modules (no build step) and follows a Model–View–Controller split:
 
@@ -19,22 +19,22 @@ assets/
   vendor/leaflet/          Leaflet 1.9.4 map library (classic script, defines L)
 data/                      every data file the site reads (see data/README.md)
   geo/                     NCR city boundaries, outline, label points (PSGC 2023)
-  places/                  the 52 listed public places
+  places/                  the 52 listed public places (names for malls) and besttime-malls.json (crowding)
   facilities/              PhilHealth TB-DOTS facilities (CSV source + JSON the site loads)
 src/
   app.js                   entry: loads main.js and shows a clear message if start-up fails
   main.js                  start-up order: static data → cleaned data files → controllers
-  config/app-config.js     data paths, test-mode rules, Overpass endpoint
+  config/app-config.js     data paths, test-mode rules
   services/
     data-service.js        fetchJSON(): checks HTTP status and JSON shape for static files
     contract-loader.js     reads and validates the four cleaned data files (CSV/JSON/Markdown)
-    auth-service.js        sign-up, log-in and log-out through Supabase Auth (free plan)
+    auth-service.js        admin log-in and log-out (one account, checked in the browser)
   models/
     static-data-model.js   loads data/geo, data/places and data/facilities before the app starts
     tb-data-model.js       TB records and predictions: years, values, classes, trends
     places-model.js        cities, public places, typical-week busyness, busy levels
     facilities-model.js    facilities, map grouping, accreditation status
-    foot-traffic-model.js  OpenStreetMap download, 7-day cache, foot-traffic indicator
+    crowd-model.js         crowding surface from BestTime mall forecasts
     settings-model.js      theme and label preferences (localStorage)
     app-model.js           app state (route, layer, year, date, selection, log-in) with change events
   views/
@@ -43,13 +43,13 @@ src/
     facilities-view.js     facility pins, cards and panel
     navigation-view.js     menu, settings, search
     intro-view.js          introduction page and its background map
-    health-guide-view.js   TB Health Guide
+    health-guide-view.js   TB Health Guide (shown on the introduction page)
     admin-view.js          Admin panel (TB history, crowding report)
     login-view.js          front-end log-in window
     data-model-view.js     data dictionary and data-file status
     helpers/               charts, colour scales, source lines, theme
   controllers/
-    app-controller.js      routes (#intro, #map, #guide, #dictionary, #admin/…), panels, log-in
+    app-controller.js      routes (#intro, #map, #dictionary, #admin/…; #guide scrolls #intro to the guide), panels, log-in
     map-controller.js      layer switching, filters, selecting cities/places/facilities
   utils/                   dom.js, format.js, storage.js, emitter.js
 tests/
@@ -66,7 +66,7 @@ docs/                      data contract, method notes, this page
 3. `main.js` asks `contract-loader.js` for the four cleaned data files. Each file gets a state (Loaded, No usable rows, Not yet provided, Could not be read, Rejected), and only valid rows reach `tb-data-model.js`.
 4. `AppController` creates the model, views and `MapController`, reads the URL hash and draws the first page.
 5. User actions go to a controller, which updates `AppModel`. The model emits which keys changed, and the controller redraws only the views that depend on them.
-6. On the Crowding tab, `foot-traffic-model.js` downloads OpenStreetMap places once a week (or uses its cache) and the map view redraws the heatmap.
+6. On the Crowding tab, picking a city draws that city's BestTime mall forecasts (`crowd-model.js`, data in `data/places/besttime-malls.json`).
 
 ## Naming conventions
 
@@ -76,7 +76,7 @@ docs/                      data contract, method notes, this page
 
 ## Security notes
 
-- No API keys or secrets anywhere in the code. The only outside service called from the browser is the free Overpass API.
-- Accounts use Supabase Auth. Only the project URL and the public anon key are in `src/config/app-config.js`; the anon key is designed for website code. The `service_role` key must never be added. Until the URL and key are filled in, sign-up says it is not available and log-in stays front-end only.
+- No API keys or secrets anywhere in the code. The browser calls no outside data service; BestTime data is downloaded beforehand by `tools/fetch-besttime.ps1`, whose private key stays in the git-ignored `.besttime.env`.
+- The admin log-in is checked in the browser (`src/services/auth-service.js`), so anyone can read its username and password in the page code. It only hides the Admin tools from ordinary visitors and is not real security. The data the Admin tools show (including `data/tb_predictions.csv`) is in public files that anyone can download. The log-in lasts until the browser tab is closed.
 - Test fixtures load only on localhost and only for names matching `^[a-z0-9-]{1,40}$`, so a URL cannot point outside `tests/fixtures/`.
 - Text from data files is escaped before it is put on the page.

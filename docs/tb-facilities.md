@@ -14,9 +14,10 @@ The Facilities tab shows one pin per PhilHealth-accredited TB-DOTS facility in N
 
 ## How pins were placed
 - Each address was matched to its PSGC 2023 barangay inside the listed city. The pin sits at the barangay centre (or at an interior point when the centre falls outside the shape).
-- 299 facilities are on the map. 86 are not: 54 in Manila, because Manila barangay boundaries were not available, and the rest had no clear barangay in the address. They still appear in search, with details and directions.
-- Facilities matched to the same barangay share one pin with a number.
-- Every card says the pin is the barangay centre, not the exact building.
+- The City of Manila has no barangay boundaries in this build, so its 54 facilities were placed with OpenStreetMap Nominatim by `tools/geocode-facilities.py`. For each one the most precise match inside Manila's boundary was kept: the facility itself, found by name (24); the first street of the address (20); the barangay number in the address (1); or, as a last resort, the centre of the listed district (9: Barrio Obrero, Baseco, Filomenita Legarda, Intramuros, Mary Johnston, Paltoc, Parola, San Sebastian and Tondo health centers or hospitals). The JSON field `pp` records which, and `mt` / `how_located` the match.
+- 353 facilities are on the map. 32 are not, because their address had no clear barangay. They still appear in search, with details and directions.
+- Facilities sharing a position share one pin with a number.
+- Every card says how close its pin is: the barangay centre, the facility's own OpenStreetMap position, the listed street, or the district centre.
 
 ## Accreditation dates
 Status is computed against the visitor's current date. Six facilities have an end date of Oct 3, 2026. That date has passed, so their pins are grey, they are labelled "Expired", and their card says the list does not show a renewal.
@@ -25,4 +26,4 @@ Status is computed against the visitor's current date. Six facilities have an en
 Name, type and sector, accreditation status, address with a copy button, TB services ("TB-DOTS clinic, PhilHealth-accredited", the only service the list verifies), phone and email when the list has them ("Not provided in the list" otherwise), pin precision, a Google Maps directions link built from the listed name and address, and a source line with the page and list number.
 
 ## Possible next step
-Street-level positions (including Manila) would need a geocoder, for example OpenStreetMap Nominatim (free, limited to 1 request per second).
+The 32 facilities still without a pin, and the nine Manila facilities at a district centre, could be placed by hand or with a better geocoder. `tools/geocode-facilities.py --city <id>` runs the same OpenStreetMap lookup for another city (1 request per second; answers are cached in `tools/geocode-cache.json`).

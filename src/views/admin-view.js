@@ -1,22 +1,23 @@
 /* =====================================================================
    AdminView: Admin panel shown after log in.
      - TB history: filters, chart and table by city and year
-     - Crowding report: typical-week busy hours by place
+     - Crowding report: BestTime forecast busy hours by mall
    ===================================================================== */
 
-import { CATEGORY, CITIES, CITY, PLACES, busyLevel, cityName } from "../models/places-model.js";
+import { CITIES, CITY, PLACES, busyLevel, cityName } from "../models/places-model.js";
 import { DEFAULT_YEAR, TREND_FROM, TREND_TO, TbData, YEARS, tbVal, trendFor, yStatus } from "../models/tb-data-model.js";
 import { $, $$, icon, opt } from "../utils/dom.js";
-import { dateLabel, esc, fmt, hourLabel, parseIso, pct } from "../utils/format.js";
+import { DOW, dateLabel, esc, fmt, hourLabel, parseIso, pct } from "../utils/format.js";
 import { Charts } from "./helpers/charts.js";
 import { CROWD_GRADIENT, crowdCSS } from "./helpers/map-scales.js";
+import { besttimeSourceHTML } from "./helpers/source-notes.js";
 
 export const ADMIN_TABS = { tb: "TB history", crowd: "Crowding report" };
 
 export class AdminView {
   constructor(model) {
     this.model = model; this.handlers = {};
-    this.f = { city: "all", measure: "count", compare: true, cCity: "all", cCat: "all", cDate: model.state.date };
+    this.f = { city: "all", measure: "count", compare: true, cCity: "all", cDate: model.state.date };
   }
   init(handlers) { this.handlers = handlers; }
 
@@ -61,24 +62,22 @@ export class AdminView {
   /* ---------- crowding ---------- */
   crowdHTML() {
     const f = this.f, cd = parseIso(f.cDate) || new Date(), day = cd.getDay();
-    const list = PLACES.filter(p => (f.cCity === "all" || p.city === f.cCity) && (f.cCat === "all" || p.cat === f.cCat));
+    const list = PLACES.filter(p => f.cCity === "all" || p.city === f.cCity).sort((a, b) => CITY[a.city].name.localeCompare(CITY[b.city].name) || b.bt.reviews - a.bt.reviews);
     const hours = [...Array(19).keys()].map(i => i + 5);
     const cityOpts = opt("all", "All of NCR", f.cCity === "all") + CITIES.filter(c => PLACES.some(p => p.city === c.id)).map(c => opt(c.id, c.name, f.cCity === c.id)).join("");
-    const catOpts = opt("all", "All types", f.cCat === "all") + Object.entries(CATEGORY).map(([k, c]) => opt(k, c.label, f.cCat === k)).join("");
     return `<div class="filters">
         <div class="field"><label for="acCity">City</label><select id="acCity">${cityOpts}</select></div>
-        <div class="field"><label for="acCat">Type of place</label><select id="acCat">${catOpts}</select></div>
         <div class="field"><label for="acDate">Date</label><span class="tf-box">${icon("i-calendar")}<input type="date" id="acDate" value="${esc(f.cDate)}" required></span></div>
       </div>
       <div class="card">
-        <h3>Usual crowding by hour, ${esc(dateLabel(f.cDate))} (${list.length} place${list.length === 1 ? "" : "s"})</h3>
-        <p class="small muted">Typical week, as a share of each place's busiest hour. Proxy: assumed pattern per place type, not a headcount, measurement or live reading. Select a place to open it on the map.</p>
+        <h3>Usual crowding by hour, ${esc(dateLabel(f.cDate))} (${list.length} mall${list.length === 1 ? "" : "s"})</h3>
+        <p class="small muted">BestTime forecast for a typical ${DOW[day]}, as a share of each mall's own busiest hour. Not a headcount and not live. Select a mall to open it on the map. ${besttimeSourceHTML()}</p>
         ${list.length ? `<div class="table-wrap" tabindex="0" role="region" aria-label="Usual crowding by hour"><table class="grid-tbl">
-          <thead><tr><th scope="col">Place</th>${hours.map(h => `<th scope="col"><span>${h % 12 || 12}${h < 12 ? "a" : "p"}</span></th>`).join("")}<th scope="col">Busiest</th></tr></thead>
+          <thead><tr><th scope="col">Mall</th>${hours.map(h => `<th scope="col"><span>${h % 12 || 12}${h < 12 ? "a" : "p"}</span></th>`).join("")}<th scope="col">Busiest</th></tr></thead>
           <tbody>${list.map(p => { const row = p.week[day], mx = Math.max(...row.filter(x => x != null)), hi = row.indexOf(mx);
-            return `<tr><th scope="row"><button type="button" class="link" data-acplace="${p.id}">${esc(p.name)}</button><small>${esc(CATEGORY[p.cat].label)} · ${esc(CITY[p.city].name)}</small></th>${hours.map(h => row[h] == null ? `<td class="gc closed" title="${hourLabel(h)}: closed">·</td>` : `<td class="gc" style="background:${crowdCSS(row[h] / 100)}" title="${hourLabel(h)}: ${row[h]}% (${busyLevel(row[h])})"><span class="sr-only">${hourLabel(h)} ${row[h]}%</span></td>`).join("")}<td class="xs">${hi >= 0 ? hourLabel(hi) : "–"}</td></tr>`; }).join("")}</tbody>
+            return `<tr><th scope="row"><button type="button" class="link" data-acplace="${p.id}">${esc(p.name)}</button><small>${esc(CITY[p.city].name)}</small></th>${hours.map(h => row[h] == null ? `<td class="gc closed" title="${hourLabel(h)}: closed">·</td>` : `<td class="gc" style="background:${crowdCSS(row[h] / 100)}" title="${hourLabel(h)}: ${row[h]}% (${busyLevel(row[h])})"><span class="sr-only">${hourLabel(h)} ${row[h]}%</span></td>`).join("")}<td class="xs">${hi >= 0 ? hourLabel(hi) : "–"}</td></tr>`; }).join("")}</tbody>
         </table></div>
-        <div class="lg-inline"><span>Less busy</span><span class="lg-ramp" style="background:${CROWD_GRADIENT}"></span><span>Busier</span><span class="closed-key">· Closed</span></div>` : `<p class="small">No places match these filters.</p>`}
+        <div class="lg-inline"><span>Less busy</span><span class="lg-ramp" style="background:${CROWD_GRADIENT}"></span><span>Busier</span><span class="closed-key">· Closed</span></div>` : `<p class="small">${PLACES.length ? "No malls in this city have a forecast yet." : "No BestTime mall forecasts are loaded."}</p>`}
         <p class="remind">Reminder: A busy place is not evidence that TB is spreading there.</p>
       </div>`;
   }
@@ -99,7 +98,6 @@ export class AdminView {
     on("#afCompare", "change", e => { this.f.compare = e.target.checked; re(); });
     $$("[data-afcity]", root).forEach(b => b.addEventListener("click", () => { this.f.city = b.dataset.afcity; re(); $("#afCity")?.focus(); }));
     on("#acCity", "change", e => { this.f.cCity = e.target.value; re(); });
-    on("#acCat", "change", e => { this.f.cCat = e.target.value; re(); });
     on("#acDate", "change", e => { if (parseIso(e.target.value)) { this.f.cDate = e.target.value; re(); } else e.target.value = this.f.cDate; });
     $$("[data-acplace]", root).forEach(b => b.addEventListener("click", () => h.onOpenPlace({ type: "place", id: b.dataset.acplace }, this.f.cDate)));
 

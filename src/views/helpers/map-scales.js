@@ -2,9 +2,10 @@
 import { TB_BREAKS, TB_COLORS } from "../../models/tb-data-model.js";
 import { fmt } from "../../utils/format.js";
 
-/* The one TB indicator drawn on the map (case_count). The legend, colours, labels and
+/* The one TB indicator drawn on the map: cases per 100,000 people (case_rate_per_100k), so big
+   cities are not darker just because more people live there. The legend, colours, labels and
    tooltips all read it from here, so they can't disagree. */
-export const MAP_MEASURE = "count";
+export const MAP_MEASURE = "rate";
 
 /* Legend rows built from the same edges tbClass() uses to colour the map. */
 export function tbLegendRows(measure) {

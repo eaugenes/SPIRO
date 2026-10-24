@@ -3,7 +3,7 @@
 <!-- PROJECT LOGO -->
 <br />
 <div align="center">
-  <img src="assets/img/spiro-logo.svg" alt="SPIRO logo" width="80" height="80">
+  <img src="assets/img/spiro-logo.png" alt="SPIRO logo" width="80" height="80">
 
 <h3 align="center">SPIRO</h3>
 
@@ -47,11 +47,11 @@
 
 SPIRO is a map website for Metro Manila (NCR) that brings three views together:
 
-- **TB cases:** notified TB cases for each city and the municipality of Pateros, from Department of Health records for 2018 and 2020–2025. 2025 is shown first.
-- **Crowding:** one heatmap over NCR that uses foot traffic as the indicator. It is built from OpenStreetMap places that draw foot traffic (malls, markets, train and bus stations, schools, places of worship), each weighted by its type and how busy that type usually is at the date and time you pick. It is an estimate, not a headcount.
+- **TB cases:** notified TB cases for each city and the municipality of Pateros, from Department of Health records for 2018–2025. 2025 is shown first.
+- **Crowding:** pick a city to see its malls. The heatmap and the city's mall list come only from BestTime foot-traffic forecasts for each mall (a typical week, from anonymised phone visit data), for the date and time you pick. It is a forecast, not a headcount and not live.
 - **Facilities:** the 385 PhilHealth-accredited TB-DOTS facilities in NCR, coloured by government or private and marked as hospital, health center or clinic.
 
-SPIRO does not show live data. Crowding is an estimate, and a busy place is not evidence that TB is spreading there.
+SPIRO does not show live data. Crowding is a BestTime forecast of a typical week at malls, and a busy place is not evidence that TB is spreading there.
 
 ### Problem It Solves
 
@@ -76,11 +76,11 @@ SPIRO gives both groups that view on one map, together with plain-language guida
 
 **Data and accounts**
 - The site reads CSV and JSON files from `data/` (see [Datasets](#datasets)).
-- ![Supabase](https://img.shields.io/badge/Supabase_Auth-3FCF8E?style=for-the-badge&logo=supabase&logoColor=white) for sign-up and log-in (passwords are stored and encrypted by Supabase, never by SPIRO)
+- One admin log-in (username and password checked in the browser; no sign-up, no account server)
 
 **APIs**
-- **OpenStreetMap** — map tiles and foot-traffic places
-- **Overpass API** — free download of OpenStreetMap places (no key)
+- **OpenStreetMap** — map tiles
+- **BestTime API** — mall list and weekly foot-traffic forecasts, downloaded beforehand by `tools/fetch-besttime.ps1` (private key kept out of the code, in `.besttime.env`)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -92,8 +92,8 @@ SPIRO gives both groups that view on one map, together with plain-language guida
 - **Crowding heatmap** for any date and time (24-hour HH:MM), with an hour-by-hour chart for each listed place
 - **TB screening facilities** with address (copy button), accreditation status, phone, email and a directions link
 - **Search** for cities, places and facilities
-- **TB Health Guide** on symptoms, prevention and free testing
-- **Sign Up and Log In** with email and password (Supabase Auth)
+- **TB Health Guide** on symptoms, prevention and free testing, on the introduction page
+- **Admin log-in** for LGUs with one shared username and password (no sign-up)
 - **Admin** view after log-in: TB history by city and year, a crowding report, and the 2026 model prediction on city cards
 - Introduction page, light and dark themes, and a layout that works on phones
 - Clear messages when a data file is missing or does not follow the data contract
@@ -128,13 +128,13 @@ SPIRO gives both groups that view on one map, together with plain-language guida
 
 | Dataset | What it holds | How SPIRO uses it |
 |---|---|---|
-| DOH Field Health Services Information System (FHSIS) TB tables, NCR: `ID TB 2018.xlsx`, `ID TB 2020–2023.xlsx`, `Tuberculosis_EB 2024.xlsx`, `FINAL Tuberculosis_EB_2025.xlsx` (supplied as `Tuberculosis_DS.zip`) | Notified TB cases (all forms) and population for each NCR city, 2018 and 2020–2025. There is no 2019 file. 2024 counts "new and relapse" only. | Cleaned by the data preparation scripts (`docs/device-b/scripts/`) into `data/cleaned_tb_data.csv` (126 rows: NCR plus 17 cities, 7 years). This is the only source of TB numbers on the map, the cards and the Admin tables. |
+| DOH Field Health Services Information System (FHSIS) TB tables, NCR: `ID TB 2018.xlsx`, `ID TB 2020–2023.xlsx`, `Tuberculosis_EB 2024.xlsx`, `FINAL Tuberculosis_EB_2025.xlsx` (supplied as `Tuberculosis_DS.zip`); 2019 from the FHSIS 2019 annual report, `FHSIS2019.pdf`, Table 1.E.4.1 | Notified TB cases (all forms) and population for each NCR city, 2018–2025. 2024 counts "new and relapse" only. | Cleaned by the data preparation scripts (`docs/device-b/scripts/`) into `data/cleaned_tb_data.csv` (144 rows: NCR plus 17 cities, 8 years). This is the only source of TB numbers on the map, the cards and the Admin tables. |
 | DOH FHSIS Annual 2025, Table 2.F.7.1 | Projected population (all ages) for 2025, by city. The NCR total is 14,015,646. | Population shown on the city cards; the denominator for rates. |
 | PSA 2020 Census of Population | City populations in 2020 | Kept for reference (`pop2020`). |
 | PSGC 2023 boundaries (PSA), via faeldon/philippines-json-maps (MIT licence) | City, municipality and region polygons | City shapes, the NCR outline and the grey mask outside NCR (`data/geo/`). |
 | `data/tb_predictions.csv` and `data/model_evaluation.json` | 2026 predicted TB case rate per 100,000 for each city (ridge mean-reversion model), with its back-test results | Shown only on city cards after the Admin log-in, labelled "Prediction". |
-| OpenStreetMap places that draw foot traffic, downloaded in the browser from the Overpass API (cached for 7 days) | Locations and types of malls, supermarkets, public markets, train and bus stations, schools, universities and places of worship in NCR | The foot-traffic heatmap and the "Foot traffic around here" line on place cards. Method: [`docs/foot-traffic.md`](docs/foot-traffic.md). |
-| SPIRO public-place list (`data/places/public-places.json`) | 52 public places with approximate coordinates, each checked to fall inside its city, and an assumed typical-week busyness shape for each place type | Place cards, and the crowding estimate used if OpenStreetMap cannot be reached. These patterns are a proxy: not measured, not live and not headcounts. |
+| BestTime foot-traffic forecasts (`data/places/besttime-malls.json`) | NCR malls known to BestTime and, for those forecast so far, the share of each mall's busiest hour for every hour of a typical week | The Crowding heatmap, the city mall lists and mall cards (see `docs/foot-traffic.md`). |
+| SPIRO public-place list (`data/places/public-places.json`) | 52 public places with approximate coordinates, each checked to fall inside its city | Gives familiar names to the malls that have a BestTime forecast; places without a forecast are not shown. |
 | PhilHealth, *List of Accredited TB DOTS Clinics for CY 2026* (updated September 30, 2026), NCR section, list nos. 599–983 | Name, phone, email, street address, city, accreditation end date and sector of each accredited TB-DOTS facility | `data/facilities/` (385 rows, no duplicates). Each address was matched to its PSGC 2023 barangay to place the pin. Method: [`docs/tb-facilities.md`](docs/tb-facilities.md). |
 
 Field definitions: `data/data_dictionary.md`. Data contract: [`docs/data-contract.md`](docs/data-contract.md).
@@ -153,7 +153,7 @@ SPIRO needs no install or build step. It runs on Windows with the PowerShell tha
    ```
    powershell -ExecutionPolicy Bypass -File serve.ps1
    ```
-3. Open http://localhost:8000 in a browser. Keep the PowerShell window open while you use the site; press Ctrl+C to stop it.
+3. The site opens in your default browser at http://localhost:8000 (add `-NoBrowser` to skip this). Keep the PowerShell window open while you use the site; press Ctrl+C to stop it. If port 8000 is already in use, the server picks the next free port (8001, 8002, …) and prints the address to open.
 
 Opening `SPIRO.html` straight from the folder does not work, because browsers block data files on `file://` pages. The site says so if you try.
 
@@ -197,13 +197,13 @@ Agafonkin, V. (2023). *Leaflet* (Version 1.9.4) [Computer software]. https://lea
 
 Centers for Disease Control and Prevention. (n.d.). *Tuberculosis (TB)*. Retrieved October 24, 2026, from https://www.cdc.gov/tb/
 
-Department of Health. (n.d.). *Field Health Services Information System (FHSIS): Tuberculosis and population tables, National Capital Region, 2018 and 2020–2025* [Data set]. https://doh.gov.ph/
+Department of Health. (n.d.). *Field Health Services Information System (FHSIS): Tuberculosis and population tables, National Capital Region, 2018–2025* [Data set]. https://doh.gov.ph/
 
 faeldon. (n.d.). *philippines-json-maps* [Computer software]. GitHub. https://github.com/faeldon/philippines-json-maps
 
 OpenStreetMap contributors. (2026). *OpenStreetMap* [Data set]. OpenStreetMap Foundation. https://www.openstreetmap.org/copyright
 
-Overpass API. (n.d.). *Overpass API* [Computer software]. OpenStreetMap Wiki. Retrieved October 24, 2026, from https://wiki.openstreetmap.org/wiki/Overpass_API
+BestTime. (n.d.). *BestTime foot traffic forecasts API* [Computer software]. Retrieved October 24, 2026, from https://besttime.app
 
 Philippine Health Insurance Corporation. (2026). *List of accredited TB DOTS clinics for CY 2026* (updated September 30, 2026) [Data set]. https://www.philhealth.gov.ph/partners/providers/
 

@@ -1,17 +1,18 @@
 /* =====================================================================
-   AppController: routes, the overlay menu, panels (TB Health Guide,
-   Admin, data dictionary) and the front-end log-in.
+   AppController: routes, the overlay menu, panels (Admin, data
+   dictionary) and the front-end log-in.
 
    Routes (URL hash):
-     #intro (or no hash)   introduction page
+     #intro (or no hash)   introduction page, with the TB Health Guide
      #map                  map
-     #guide                TB Health Guide panel
+     #guide                scrolls the introduction page to the TB Health Guide
      #dictionary           data dictionary
      #admin/tb | #admin/crowd   Admin (after log in)
    ===================================================================== */
 
 import { MapController } from "./map-controller.js";
 import { AppModel } from "../models/app-model.js";
+import { FAC } from "../models/facilities-model.js";
 import { CITIES, PLACES } from "../models/places-model.js";
 import { Prefs } from "../models/settings-model.js";
 import { DEFAULT_YEAR, YEARS, tbVal } from "../models/tb-data-model.js";
@@ -20,7 +21,6 @@ import { $, toast } from "../utils/dom.js";
 import { isoDate, parseIso } from "../utils/format.js";
 import { ADMIN_TABS, AdminView } from "../views/admin-view.js";
 import { DataModelView } from "../views/data-model-view.js";
-import { HealthGuideView } from "../views/health-guide-view.js";
 import { IntroView } from "../views/intro-view.js";
 import { applyTheme } from "../views/helpers/theme.js";
 import { LoginView } from "../views/login-view.js";
@@ -28,7 +28,6 @@ import { AuthService } from "../services/auth-service.js";
 import { MapView } from "../views/map-view.js";
 import { NavigationView } from "../views/navigation-view.js";
 import { PlaceDetailsView } from "../views/place-details-view.js";
-import { MAP_MEASURE } from "../views/helpers/map-scales.js";
 
 export class AppController {
   constructor() {
@@ -66,6 +65,7 @@ export class AppController {
 
     this.model.on("change", changed => this.onModelChange(changed));
 
+    $("#backBtn").addEventListener("click", () => this.navigate("intro"));
     $("#sheetClose").addEventListener("click", () => this.navigate("map"));
     $("#sheetScrim").addEventListener("click", () => this.navigate("map"));
     $("#modalScrim").addEventListener("click", () => LoginView.close());
@@ -75,8 +75,6 @@ export class AppController {
     window.addEventListener("resize", () => { clearTimeout(this._rz); this._rz = setTimeout(() => this.rerenderCharts(), 200); });
     this.placeCardSlot();
     this.applyRoute();
-    /* Stay logged in after a reload when Supabase still has a valid session. */
-    AuthService.currentUser().then(u => { if (u) this.model.set({ isAdmin: true }); });
   }
 
   /* On wide screens the selected card floats in the top-right corner, under the logo and above
@@ -94,7 +92,8 @@ export class AppController {
   parse() {
     const h = location.hash.replace(/^#/, "");
     if (h.startsWith("admin")) return { route: "admin", tab: ADMIN_TABS[h.split("/")[1]] ? h.split("/")[1] : "tb" };
-    if (["guide", "dictionary"].includes(h)) return { route: h };  /* #report and #overview removed; they open the map */
+    if (h === "dictionary") return { route: h };                  /* #report and #overview removed; they open the map */
+    if (h === "guide") return { route: "intro", jump: "in-guide" }; /* The guide now lives on the introduction page */
     if (h === "" || h === "intro") return { route: "intro" };       /* The introduction is the first page on opening the site */
     return { route: "map" };
   }
@@ -111,11 +110,16 @@ export class AppController {
     const leave = r.route !== this.model.state.route;
     this.model.set({ route: r.route, ...(r.tab ? { adminTab: r.tab } : {}), ...(leave ? { navOpen: false } : {}), ...(leave && r.route !== "map" ? { selected: null } : {}) });
     this.showRoute();
+    if (r.jump) {
+      history.replaceState(null, "", "#intro");
+      const t = document.getElementById(r.jump);
+      if (t) { t.scrollIntoView({ block: "start" }); t.focus({ preventScroll: true }); }
+    }
   }
   showRoute() {
     const route = this.model.state.route;
     this.mapView.invalidate();
-    const sheetOpen = ["guide", "admin", "dictionary"].includes(route);
+    const sheetOpen = ["admin", "dictionary"].includes(route);
     $("#sheet").hidden = !sheetOpen; $("#sheetScrim").hidden = !sheetOpen;
     document.body.classList.toggle("sheet-open", sheetOpen);
     if (sheetOpen) { this.renderSheet(false); $("#sheet").focus({ preventScroll: true }); }
@@ -123,7 +127,7 @@ export class AppController {
     if (intro) { this.renderIntro(); if (ib.hidden) { ib.hidden = false; ib.scrollTop = 0; ib.focus({ preventScroll: true }); } } else ib.hidden = true;
     $("#mapStage").toggleAttribute("inert", intro); $("#mapStage").setAttribute("aria-hidden", String(intro));
     this.placeView.render();
-    document.title = { intro: "SPIRO · Metro Manila TB map", map: "SPIRO", guide: "TB Health Guide · SPIRO", admin: "Admin · SPIRO", dictionary: "Data dictionary · SPIRO" }[route];
+    document.title = { intro: "SPIRO · Metro Manila TB map", map: "SPIRO", admin: "Admin · SPIRO", dictionary: "Data dictionary · SPIRO" }[route];
     if (ContractData.source.test) document.title = "[TEST DATA] " + document.title;
   }
 
@@ -131,8 +135,7 @@ export class AppController {
     const s = this.model.state, body = $("#sheetBody"), y = body.scrollTop;
     const active = document.activeElement && document.activeElement.id;
     $("#sheet").dataset.kind = s.route;
-    if (s.route === "guide") { $("#sheetTitle").textContent = HealthGuideView.title; body.innerHTML = HealthGuideView.html(); HealthGuideView.bind(body); }
-    else if (s.route === "dictionary") { $("#sheetTitle").textContent = "Data dictionary"; body.innerHTML = DataModelView.dictionaryHTML(); }
+    if (s.route === "dictionary") { $("#sheetTitle").textContent = "Data dictionary"; body.innerHTML = DataModelView.dictionaryHTML(); }
     else if (s.route === "admin") { $("#sheetTitle").textContent = "Admin: " + ADMIN_TABS[s.adminTab]; body.innerHTML = this.adminView.html(s.adminTab); this.adminView.bind(body, s.adminTab); }
     body.scrollTop = keepScroll ? y : 0;
     if (keepScroll && active && document.getElementById(active)) document.getElementById(active).focus({ preventScroll: true });
@@ -157,35 +160,28 @@ export class AppController {
   /* ---------- menu ---------- */
   closeNav(returnFocus) { if (!this.model.state.navOpen) return; this.model.set({ navOpen: false }); if (returnFocus) $("#navBtn").focus(); }
 
-  /* ---------- sign up / log in / log out (Supabase Auth through AuthService) ---------- */
-  openLogin(route, mode = "login") {
+  /* ---------- log in / log out for the one admin account (AuthService) ----------
+     No sign-up. The log-in lasts for this browser tab (app-model.js keeps it in sessionStorage). */
+  openLogin(route) {
     this.pendingRoute = route;
-    LoginView.open({ onSubmit: form => this.submitAuth(form) }, null, mode);
+    LoginView.open({ onSubmit: form => this.submitAuth(form) }, null);
   }
-  async submitAuth({ mode, email, password }) {
-    if (!AuthService.configured()) {
-      /* No account server set up yet: sign-up cannot work; log-in keeps the front-end-only behaviour. */
-      if (mode === "signup") throw new Error("Sign-up is not available yet. Please try again later.");
-      this.finishLogin();
-      return;
-    }
-    if (mode === "signup") {
-      const r = await AuthService.signUp(email, password);
-      if (r.needsConfirmation) { LoginView.close(); toast("Account created. Check your email and open the confirmation link, then log in."); return; }
-    } else {
-      await AuthService.logIn(email, password);
-    }
-    this.finishLogin(mode === "signup" ? "Account created. You are logged in." : "Logged in. Admin tools are open.");
+  async submitAuth({ username, password }) {
+    await AuthService.logIn(username, password);
+    this.finishLogin();
   }
-  finishLogin(msg = "Logged in. Admin tools are open.") {
+  /* Logging in does not open the Admin panel: the admin tools appear in the map's left column.
+     Only an admin page asked for before logging in (an #admin/... link) opens. */
+  finishLogin() {
     LoginView.close();
     this.model.set({ isAdmin: true });
-    toast(msg);
-    this.navigate(this.pendingRoute || "admin/tb");
+    toast("Logged in. LGU Admin tools are in the left panel of the map.");
+    if (this.pendingRoute) this.navigate(this.pendingRoute);
+    else if (this.model.state.route !== "map") this.navigate("map");
     this.pendingRoute = null;
   }
   async logout() {
-    try { await AuthService.logOut(); } catch { /* Logged out locally even if the server cannot be reached */ }
+    await AuthService.logOut();
     this.model.set({ isAdmin: false });
     toast("Logged out.");
     if (this.model.state.route === "admin") this.navigate("map");
@@ -195,8 +191,14 @@ export class AppController {
   renderIntro() {
     const y = DEFAULT_YEAR;
     this.introView.render(
-      { year: y, firstYear: YEARS[0], total: tbVal("all", y, MAP_MEASURE), cityCount: CITIES.length, placeCount: PLACES.length, isAdmin: this.model.state.isAdmin },
-      { onNavigate: route => this.navigate(route), onLogin: () => this.openLogin(null), onSignup: () => this.openLogin(null, "signup") }
+      { year: y, firstYear: YEARS[0], total: tbVal("all", y, "count"), cityCount: CITIES.length, placeCount: PLACES.length,
+        facCount: FAC.length, facMapped: FAC.filter(f => f.lat != null).length, isAdmin: this.model.state.isAdmin },
+      {
+        onNavigate: route => this.navigate(route),
+        /* Quick actions open the map on one layer: tb | crowd | fac. */
+        onOpenMap: layer => { this.model.set({ layer, selected: null }); this.navigate("map"); },
+        onLogin: () => this.openLogin(null)
+      }
     );
   }
 

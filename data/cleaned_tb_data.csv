@@ -17,6 +17,24 @@ record_id,year,period_start,period_end,period_type,geo_level,geo_code,geo_name,p
 2018-1380800000-annual,2018,2018-01-01,2018-12-31,annual,city_municipality,1380800000,City of Muntinlupa,,City of Muntinlupa,,2066,528164,391.1664,ID TB 2018.xlsx,Table 2H.1
 2018-1381000000-annual,2018,2018-01-01,2018-12-31,annual,city_municipality,1381000000,City of Parañaque,,City of Parañaque,,2013,697040,288.7926,ID TB 2018.xlsx,Table 2H.1
 2018-1381100000-annual,2018,2018-01-01,2018-12-31,annual,city_municipality,1381100000,Pasay City,,Pasay City,,1678,436052,384.8165,ID TB 2018.xlsx,Table 2H.1
+2019-1300000000-annual,2019,2019-01-01,2019-12-31,annual,region,1300000000,National Capital Region (NCR),,,,71902,13694816,525.0308,FHSIS2019.pdf,Table 1.E.4.1
+2019-1380400000-annual,2019,2019-01-01,2019-12-31,annual,city_municipality,1380400000,City of Malabon,,City of Malabon,,2579,373284,690.8949,FHSIS2019.pdf,Table 1.E.4.1
+2019-1380900000-annual,2019,2019-01-01,2019-12-31,annual,city_municipality,1380900000,City of Navotas,,City of Navotas,,1378,248638,554.2194,FHSIS2019.pdf,Table 1.E.4.1
+2019-1381600000-annual,2019,2019-01-01,2019-12-31,annual,city_municipality,1381600000,City of Valenzuela,,City of Valenzuela,,4546,653305,695.8465,FHSIS2019.pdf,Table 1.E.4.1
+2019-1380100000-annual,2019,2019-01-01,2019-12-31,annual,city_municipality,1380100000,City of Caloocan,,City of Caloocan,,6928,1651493,419.4992,FHSIS2019.pdf,Table 1.E.4.1
+2019-1380700000-annual,2019,2019-01-01,2019-12-31,annual,city_municipality,1380700000,City of Marikina,,City of Marikina,,3629,469181,773.4755,FHSIS2019.pdf,Table 1.E.4.1
+2019-1381200000-annual,2019,2019-01-01,2019-12-31,annual,city_municipality,1381200000,City of Pasig,,City of Pasig,,3769,822854,458.0399,FHSIS2019.pdf,Table 1.E.4.1
+2019-1381701000-annual,2019,2019-01-01,2019-12-31,annual,city_municipality,1381701000,Pateros,,Pateros,,210,63376,331.3557,FHSIS2019.pdf,Table 1.E.4.1
+2019-1381500000-annual,2019,2019-01-01,2019-12-31,annual,city_municipality,1381500000,City of Taguig,,City of Taguig,,4511,947362,476.1643,FHSIS2019.pdf,Table 1.E.4.1
+2019-1381300000-annual,2019,2019-01-01,2019-12-31,annual,city_municipality,1381300000,Quezon City,,Quezon City,,14508,3065597,473.252,FHSIS2019.pdf,Table 1.E.4.1
+2019-1380300000-annual,2019,2019-01-01,2019-12-31,annual,city_municipality,1380300000,City of Makati,,City of Makati,,3517,624587,563.0921,FHSIS2019.pdf,Table 1.E.4.1
+2019-1380500000-annual,2019,2019-01-01,2019-12-31,annual,city_municipality,1380500000,City of Mandaluyong,,City of Mandaluyong,,2916,438677,664.726,FHSIS2019.pdf,Table 1.E.4.1
+2019-1381400000-annual,2019,2019-01-01,2019-12-31,annual,city_municipality,1381400000,City of San Juan,,City of San Juan,,627,122505,511.8158,FHSIS2019.pdf,Table 1.E.4.1
+2019-1380600000-annual,2019,2019-01-01,2019-12-31,annual,city_municipality,1380600000,City of Manila,,City of Manila,,13274,1880120,706.0188,FHSIS2019.pdf,Table 1.E.4.1
+2019-1380200000-annual,2019,2019-01-01,2019-12-31,annual,city_municipality,1380200000,City of Las Piñas,,City of Las Piñas,,2121,614860,344.9566,FHSIS2019.pdf,Table 1.E.4.1
+2019-1380800000-annual,2019,2019-01-01,2019-12-31,annual,city_municipality,1380800000,City of Muntinlupa,,City of Muntinlupa,,2788,556831,500.6905,FHSIS2019.pdf,Table 1.E.4.1
+2019-1381000000-annual,2019,2019-01-01,2019-12-31,annual,city_municipality,1381000000,City of Parañaque,,City of Parañaque,,2231,728176,306.382,FHSIS2019.pdf,Table 1.E.4.1
+2019-1381100000-annual,2019,2019-01-01,2019-12-31,annual,city_municipality,1381100000,Pasay City,,Pasay City,,2370,433969,546.122,FHSIS2019.pdf,Table 1.E.4.1
 2020-1300000000-annual,2020,2020-01-01,2020-12-31,annual,region,1300000000,National Capital Region (NCR),,,,34554,13694816.13,252.3145,ID TB 2020.xlsx,TB Table 1
 2020-1380400000-annual,2020,2020-01-01,2020-12-31,annual,city_municipality,1380400000,City of Malabon,,City of Malabon,,1228,373283.84,328.9722,ID TB 2020.xlsx,TB Table 1
 2020-1380900000-annual,2020,2020-01-01,2020-12-31,annual,city_municipality,1380900000,City of Navotas,,City of Navotas,,681,248638.21,273.8919,ID TB 2020.xlsx,TB Table 1

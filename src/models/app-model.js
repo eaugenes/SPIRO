@@ -11,7 +11,7 @@ export class AppModel extends Emitter {
     super();
     const now = new Date();
     this.state = {
-      route: "map",           // map | overview | guide | report | admin
+      route: "map",           // intro | map | admin | dictionary
       adminTab: "tb",         // tb | crowd | reports
       layer: "tb",            // tb | crowd
       year: DEFAULT_YEAR,     // 2025 by default

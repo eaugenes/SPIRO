@@ -9,10 +9,25 @@ import { isoDate, parseIso } from "../utils/format.js";
    updated September 30, 2026 (NCR rows nos. 599–983), and
    https://www.philhealth.gov.ph/partners/providers/
    Positions: each address was matched to its PSGC 2023 barangay and the pin
-   sits at that barangay's centre. Facilities whose barangay could not be
-   matched are listed but not drawn. Nothing here is typed in by hand.
+   sits at that barangay's centre. The City of Manila has no barangay
+   boundaries in this build, so its facilities were placed with OpenStreetMap
+   by tools/geocode-facilities.py; their `pp` field says how close the pin is.
+   Facilities with no position are listed but not drawn. Nothing here is typed in by hand.
    ===================================================================== */
 export const FAC_META = TB_FAC_META;
+
+/* How close a pin is to the building, by `pp` (absent = PSGC barangay centre).
+   short: tooltips and group lists; long: the facility card. */
+export function facPin(f) {
+  const b = f.b || "the barangay";
+  switch (f.pp) {
+    case "place": return { short: "the facility's own position (OpenStreetMap)", long: "The facility's own position in OpenStreetMap, found by its name." };
+    case "street": return { short: "on the listed street, not the exact building", long: "On the first street of the listed address (OpenStreetMap). Not the exact building." };
+    case "barangay": return { short: `centre of ${b}, not the exact building`, long: `Centre of ${b} in OpenStreetMap, from the address. Not the exact building.` };
+    case "district": return { short: `centre of ${b} district, may be some distance away`, long: `Centre of the ${b} district: OpenStreetMap had no closer match, so the facility may be some distance from the pin.` };
+    default: return { short: `centre of ${b}, not the exact building`, long: `Centre of ${b}, matched from the address. Not the exact building.` };
+  }
+}
 
 export const FAC = TB_FACILITIES;
 

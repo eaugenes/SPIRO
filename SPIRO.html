@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>SPIRO</title>
 <meta name="description" content="Map of tuberculosis case patterns and crowding in Metro Manila, with TB health guidance.">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/img/favicon-32.png">
+<link rel="icon" type="image/png" sizes="64x64" href="assets/img/favicon-64.png">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=Public+Sans:wght@400;500;600;700&display=swap">
@@ -22,7 +25,6 @@
 <!-- Icon sprite -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
   <defs>
-    <symbol id="i-logo" viewBox="0 0 32 32"><path d="M16 2.5c-5.8 0-10.5 4.6-10.5 10.4 0 7.6 10.5 16.6 10.5 16.6s10.5-9 10.5-16.6C26.5 7.1 21.8 2.5 16 2.5z" fill="currentColor"/><path d="M16 8.2v9.4M11.3 12.9h9.4" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/></symbol>
     <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
     <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
@@ -78,6 +80,7 @@
       <!-- Primary map controls, in order: layer toggle, search, date/time -->
       <div class="ctrl-col" id="ctrlCol">
         <div class="ctrl-card ctrl-mode">
+          <button type="button" id="backBtn" class="hamb back-btn" aria-label="Back to the first screen" title="Back"><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg></button>
           <button type="button" id="navBtn" class="hamb" aria-label="Open menu" aria-expanded="false" aria-controls="navPanel"><span class="hb" aria-hidden="true"><i></i><i></i><i></i></span></button>
           <div class="seg layer-seg" id="layerSeg" role="radiogroup" aria-label="Map layer"></div>
         </div>
@@ -85,14 +88,18 @@
           <label class="ctrl-title" for="topFind" id="topFindLbl">Search Location</label>
           <div class="top-search">
             <svg class="i" aria-hidden="true"><use href="#i-search"/></svg>
-            <input id="topFind" type="search" placeholder="Type a city or place" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="topFindList">
+            <input id="topFind" type="search" placeholder="Type a city, mall or facility" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="topFindList">
             <ul id="topFindList" class="ts-list" role="listbox" aria-labelledby="topFindLbl" hidden></ul>
           </div>
           <p class="ts-msg" id="topFindMsg" hidden role="status"></p>
         </div>
         <section class="ctrl-card ctrl-time" id="timeBox" aria-labelledby="timeTitle"></section>
+        <!-- LGU Admin tools, shown only after logging in -->
+        <nav class="ctrl-card ctrl-admin" id="adminBox" aria-labelledby="adminBoxTitle" hidden></nav>
       </div>
-      <a class="logo-ph" href="#intro" aria-label="SPIRO, open the introduction" title="About SPIRO"><svg class="logo" aria-hidden="true"><use href="#i-logo"/></svg><b>SPIRO</b></a>
+      <a class="logo-ph" href="#intro" aria-label="SPIRO, open the introduction" title="About SPIRO"><img class="logo" src="assets/img/spiro-logo.png" alt="" width="256" height="256"><b>SPIRO</b></a>
+      <!-- Takes the logo's place while the LGU admin is logged in -->
+      <button type="button" class="logo-ph top-logout" id="topLogout" aria-label="Log out" title="Log out" hidden><svg class="i" aria-hidden="true"><use href="#i-logout"/></svg><b>Log out</b></button>
 
       <!-- Map controls and legend share the bottom-right corner -->
       <div class="br-stack">
@@ -116,7 +123,7 @@
   <div id="navScrim" class="scrim" hidden></div>
   <nav id="navPanel" class="nav-panel" hidden role="dialog" aria-modal="true" aria-labelledby="setTitle" tabindex="-1"></nav>
 
-  <!-- 3. Panels: TB Health Guide, Admin, data dictionary -->
+  <!-- 3. Panels: Admin, data dictionary -->
   <div id="sheetScrim" class="scrim" hidden></div>
   <section id="sheet" class="sheet" hidden aria-labelledby="sheetTitle" tabindex="-1">
     <div class="sheet-head">

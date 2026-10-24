@@ -41,7 +41,6 @@
 
 /* ---------- health guide ---------- */
 .guide { display: flex; flex-direction: column; gap: 1.25rem; }
-.sheet[data-kind="guide"] { width: min(64rem, 100%); }
 .g-nav { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: .625rem; position: sticky; top: -1.25rem; z-index: 3; margin: -1.25rem -1.25rem 0; padding: 1rem 1.25rem .75rem; background: var(--bg); }
 .g-btn { display: flex; align-items: center; gap: .75rem; padding: .75rem .875rem; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); color: var(--heading); text-decoration: none; box-shadow: var(--shadow); transition: transform .15s, border-color .15s, background .15s; }
 .g-btn > svg { flex: none; color: var(--primary); }
@@ -63,6 +62,11 @@
   .g-btn b { font-size: .8125rem; line-height: 1.2; } .g-btn small { display: none; }
   .g-grid .g-sec { scroll-margin-top: 7.5rem; }
 }
+/* On the introduction page the section buttons scroll with the page instead of sticking to the top. */
+.in-guide { outline: none; scroll-margin-top: 1rem; }
+.in-guide .g-nav { position: static; margin: 0; padding: 0; background: none; }
+.in-guide .g-lead { white-space: normal; }
+.in-guide .g-grid .g-sec { scroll-margin-top: 1rem; }
 @keyframes gFlash { 0% { box-shadow: 0 0 0 3px var(--primary-2); } 100% { box-shadow: 0 0 0 0 transparent; } }
 .g-sec.g-flash { animation: gFlash 1.2s ease-out; }
 .chips { display: flex; flex-wrap: wrap; gap: .5rem; }

@@ -22,7 +22,7 @@ def feat(t_prev):
 
 rows = []
 for t in sorted(R.columns):
-    if t - 1 not in R.columns: continue          # 2019 missing: no 2018->2020 consecutive pair
+    if t - 1 not in R.columns: continue          # only consecutive-year pairs
     f = feat(t - 1)
     for g in R.index:
         if (g, t) in BREAKS: continue
@@ -66,6 +66,8 @@ for g in R.index:
 pd.DataFrame(preds)[PRED_HEADER].to_csv(f"{OUT}/tb_predictions.csv", index=False, encoding="utf-8")
 
 beats = model_m["mae"] < base_m["mae"]
+YRS = sorted(int(y) for y in R.columns)
+missing = sorted(set(range(YRS[0], YRS[-1] + 1)) - set(YRS))
 ev = {
  "status": "completed",
  "target_variable": "case_rate_per_100k",
@@ -83,7 +85,8 @@ ev = {
  "metrics": model_m,
  "baseline_metrics": base_m,
  "limitations": [
-  "Very small dataset: 17 NCR LGUs x 7 observed years (2018, 2020-2025); 2019 data was not supplied, so only 5 consecutive-year transitions exist (83 modelling rows after exclusions).",
+  "Very small dataset: 17 NCR LGUs x %d observed years (%d-%d%s), so only %d consecutive-year transitions exist (%d modelling rows after exclusions)." % (
+   len(YRS), YRS[0], YRS[-1], "; missing: " + ", ".join(map(str, missing)) if missing else "", D.t.nunique(), len(D)),
   ("The model does NOT outperform the persistence baseline on pooled MAE; predictions should be treated as roughly equivalent to 'next year looks like this year, nudged slightly toward the NCR average'." if not beats else
    "The model only marginally outperforms the persistence baseline on pooled MAE across just three test years; the difference is not statistically established."),
   "Model configuration (no intercept, single mean-reversion feature, alpha=5) was chosen after comparing several Ridge variants on the same 2023-2025 test years, so reported metrics are optimistic. Ridge models with an intercept or lagged-growth features performed substantially worse than persistence.",
@@ -97,7 +100,7 @@ ev = {
  "notes": [
   "Model: Ridge regression (scikit-learn, alpha=5, fit_intercept=False). Target = log(rate_t / rate_{t-1}). Feature = log(rate_{t-1}) minus the NCR cross-LGU mean of log(rate_{t-1}). Prediction = rate_{t-1} * exp(coef * feature).",
   "Final fitted coefficient on the mean-reversion feature: %.4f (negative = LGUs above the NCR average are predicted to move toward it)." % final.coef_[0],
-  "Final model trained on all %d transitions with target years 2021-2025; predictions are for calendar year 2026 for the 17 NCR LGUs only. NCR region-level, barangay-level and other periods are not predicted." % len(D),
+  "Final model trained on all %d transitions with target years %d-%d; predictions are for calendar year 2026 for the 17 NCR LGUs only. NCR region-level, barangay-level and other periods are not predicted." % (len(D), D.t.min(), D.t.max()),
   "Per-test-year results: " + json.dumps(per_year),
   "Observed data source: case_rate_per_100k in cleaned_tb_data.csv (notified TB, all forms / projected population x 100,000).",
   "Run identifier: %s (generated_at plus the first 12 hex digits of the SHA-256 of the input cleaned_tb_data.csv). The fitted model is not saved as a file: it has one coefficient (above) and is reproduced exactly by re-running model.py on the same input." % RUN_ID,

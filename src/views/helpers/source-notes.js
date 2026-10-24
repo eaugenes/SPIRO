@@ -1,9 +1,10 @@
 /* Source lines shown under the legend and on cards (presentation of model metadata). */
 
-import { fmt } from "../../utils/format.js";
+import { BESTTIME } from "../../models/static-data-model.js";
 
-/** "Source: (c) OpenStreetMap contributors ... downloaded <date> via the Overpass API" for a loaded OsmFoot status. */
-export function osmSourceHTML(st) {
-  const d = st.fetched ? new Date(st.fetched).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" }) : "";
-  return `Source: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a> (ODbL), ${fmt(st.n)} places downloaded ${d} via the <a href="https://wiki.openstreetmap.org/wiki/Overpass_API" target="_blank" rel="noopener">Overpass API</a>.`;
+/** "Forecast: BestTime ... downloaded <date>" for the malls that have a BestTime forecast, or "" without the file. */
+export function besttimeSourceHTML() {
+  if (!BESTTIME) return "";
+  const d = new Date(BESTTIME.fetched).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" });
+  return `Forecast: <a href="https://besttime.app" target="_blank" rel="noopener">BestTime</a>, from anonymised phone visit data, downloaded ${d}.`;
 }

@@ -21,10 +21,10 @@
 .hamb { width: 3rem; height: 3rem; flex: none; display: grid; place-items: center; border: 0; border-radius: var(--r); background: var(--surface); color: var(--heading); box-shadow: var(--shadow); cursor: pointer; }
 .hamb svg { width: 1.625rem; height: 1.625rem; }
 .hamb:hover { color: var(--primary); }
-.logo { width: 1.875rem; height: 1.875rem; color: var(--primary); flex: none; }
+.logo { width: 2.25rem; height: 2.25rem; flex: none; object-fit: contain; }
 
 /* Left control column (toggle, search, date/time, then the selected card) */
-.ctrl-col { position: absolute; top: .75rem; left: .75rem; bottom: 1.75rem; z-index: 790; width: 17.5rem; max-width: calc(100% - 4.75rem); display: flex; flex-direction: column; gap: .5rem; pointer-events: none; }
+.ctrl-col { position: absolute; top: .75rem; left: .75rem; bottom: 1.75rem; z-index: 790; width: 20rem; max-width: calc(100% - 4.75rem); display: flex; flex-direction: column; gap: .5rem; pointer-events: none; }
 .ctrl-col > * { pointer-events: auto; }
 .ctrl-card { flex: none; background: var(--surface); border-radius: var(--r-lg); box-shadow: var(--shadow); padding: .375rem .5rem .5rem; }
 /* Compact controls */
@@ -42,6 +42,9 @@
 .ctrl-mode { display: flex; gap: .375rem; align-items: center; padding: .25rem; }
 .ctrl-mode .hamb { width: 2.125rem; height: 2.125rem; box-shadow: none; background: var(--surface-2); border: 1px solid var(--line); }
 .ctrl-mode .hamb svg { width: 1.375rem; height: 1.375rem; }
+.ctrl-mode .back-btn svg { width: 1.125rem; height: 1.125rem; transform: scaleX(-1); } /* i-arrow points right; flip it */
+/* With the Back button beside the menu, phones keep the layer names and drop the small icons. */
+@media (max-width: 480px) { .ctrl-col .ctrl-mode .seg button svg { display: none; } }
 .ctrl-mode .seg { flex: 1; min-width: 0; } .ctrl-mode .seg button { flex: 1 1 0; min-width: 0; justify-content: center; }
 .ctrl-col .ctrl-mode .seg button { padding: .125rem .3rem; gap: .2rem; font-size: .75rem; } .ctrl-col .ctrl-mode .seg button svg { width: .85rem; height: .85rem; }
 .ctrl-title { display: block; font: 700 .625rem/1.3 var(--f-body); letter-spacing: .05em; text-transform: uppercase; color: var(--muted); margin: 0 0 .25rem; }
@@ -213,6 +216,17 @@ label.check { display: inline-flex; align-items: center; gap: .5rem; }
 .np-item small { display: block; color: var(--muted); font-size: .8125rem; }
 .np-item:hover { background: var(--surface-2); }
 .np-item.on { background: var(--tint); }
+.np-note { margin: 0; padding: .25rem .5rem .5rem; font-size: .8125rem; color: var(--muted); }
+/* LGU Admin card in the map's left column (after log in) */
+.adm-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.adm-head .ctrl-title { margin: 0; color: var(--primary); }
+.adm-out { display: inline-flex; align-items: center; gap: .25rem; font-size: .75rem; text-decoration: none; color: var(--muted); }
+.adm-out svg { width: .9rem; height: .9rem; } .adm-out:hover { color: var(--heading); }
+.adm-list { display: grid; grid-template-columns: 1fr 1fr; gap: .375rem; margin-top: .375rem; }
+.adm-item { display: flex; align-items: flex-start; gap: .4rem; padding: .4rem .5rem; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface); color: var(--heading); text-decoration: none; min-width: 0; }
+.adm-item svg { flex: none; width: 1rem; height: 1rem; margin-top: .1rem; color: var(--primary); }
+.adm-item b { display: block; font-size: .8125rem; font-weight: 700; } .adm-item small { display: block; font-size: .6875rem; color: var(--muted); }
+.adm-item:hover { border-color: var(--primary); } .adm-item.on { background: var(--tint); border-color: var(--primary); }
 #npFind { margin: .125rem .5rem .25rem; width: calc(100% - 1rem); }
 .np-find-note { margin: 0 .5rem .25rem; }
 
@@ -231,7 +245,7 @@ label.check { display: inline-flex; align-items: center; gap: .5rem; }
   radial-gradient(40rem 24rem at -10% 110%, color-mix(in srgb, #F28A1E 14%, transparent), transparent 70%), var(--bg); }
 .intro:focus { outline: none; }
 .in-top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .875rem .75rem .875rem clamp(1rem, 4vw, 2.5rem); }
-.in-brand { display: inline-flex; align-items: center; gap: .5rem; color: var(--heading); } .in-brand .logo { width: 1.75rem; height: 1.75rem; color: var(--primary); } .in-brand b { font: 800 1.25rem var(--f-display); letter-spacing: .02em; }
+.in-brand { display: inline-flex; align-items: center; gap: .5rem; color: var(--heading); } .in-brand .logo { width: 2.25rem; height: 2.25rem; } .in-brand b { font: 800 1.25rem var(--f-display); letter-spacing: .02em; }
 .in-wrap { max-width: 64rem; margin: 0 auto; padding: clamp(1rem, 5vw, 3.5rem) clamp(1rem, 4vw, 2.5rem) 3rem; }
 .in-hero { position: relative; isolation: isolate; }
 .in-hero > :not(.in-map) { position: relative; z-index: 1; }
@@ -243,6 +257,9 @@ label.check { display: inline-flex; align-items: center; gap: .5rem; }
 .in-map figcaption { position: absolute; z-index: 600; right: clamp(1rem, 4vw, 2.5rem); bottom: 12%; font-size: .75rem; font-weight: 700; color: var(--heading); background: var(--surface); padding: .25rem .6rem; border-radius: 999px; box-shadow: 0 1px 4px rgba(18,45,64,.2); }
 .in-map .leaflet-control-attribution { pointer-events: auto; font-size: .625rem; }
 .intro > .in-top, .intro > .in-wrap { position: relative; z-index: 1; }
+/* Set by IntroView.bindMapClick while the pointer is over a clickable part of the background map */
+.intro.over-map { cursor: pointer; }
+.intro.over-map .in-map figcaption { color: var(--primary); box-shadow: 0 0 0 2px var(--primary), 0 1px 4px rgba(18,45,64,.2); }
 @keyframes inMap { from { opacity: 0; } to { opacity: 1; } }
 .in-hero h1, .in-lead, .in-hero .eyebrow { text-shadow: 0 0 18px var(--bg), 0 0 6px var(--bg); }
 .intro { overflow-x: hidden; }
@@ -262,13 +279,24 @@ label.check { display: inline-flex; align-items: center; gap: .5rem; }
 .in-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; }
 .in-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 1rem; }
 .in-card > svg { color: var(--primary); } .in-card h3 { font-size: 1.0625rem; margin: .375rem 0 .25rem; color: var(--heading); } .in-card p { margin: 0; font-size: .9375rem; color: var(--ink); }
+/* Citizen quick actions: large tap targets, one per task */
+.in-tasks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+.in-task { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: 1fr auto; column-gap: .875rem; row-gap: .625rem; padding: 1rem 1.125rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow); color: var(--ink); text-decoration: none; transition: transform .15s, box-shadow .15s, border-color .15s; }
+.in-task:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); border-color: var(--primary); }
+.in-task:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
+.in-task-ic { grid-row: 1 / 3; display: grid; place-items: center; width: 3rem; height: 3rem; border-radius: var(--r); background: var(--tint); color: var(--primary); }
+.in-task-t { display: flex; flex-direction: column; gap: .2rem; min-width: 0; } .in-task-t b { font: 700 1.125rem/1.25 var(--f-display); color: var(--heading); } .in-task-t > span { font-size: .9375rem; }
+.in-task-go { display: inline-flex; align-items: center; gap: .3rem; font-weight: 700; font-size: .9375rem; color: var(--primary); }
+.in-task-go .i { transition: transform .2s; } .in-task:hover .in-task-go .i { transform: translateX(3px); }
 .in-note { display: flex; gap: .5rem; align-items: flex-start; margin: 2rem 0 0; padding: .75rem 1rem; border-left: 4px solid var(--primary); background: var(--tint); border-radius: var(--r-sm); font-size: .9375rem; color: var(--heading); }
 .in-note svg { flex: none; margin-top: .2rem; color: var(--primary); }
 .in-src { margin: 1.25rem 0 0; font-size: .8125rem; color: var(--muted); }
 @keyframes inUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 .intro:not([hidden]) .in-hero, .intro:not([hidden]) .in-stats, .intro:not([hidden]) .in-sec, .intro:not([hidden]) .in-note { animation: inUp .5s cubic-bezier(.2,.8,.2,1) both; }
 .intro .in-stats { animation-delay: .08s !important; } .intro .in-sec { animation-delay: .16s !important; } .intro .in-note { animation-delay: .24s !important; }
-@media (max-width: 720px) { .in-stats, .in-cards { grid-template-columns: 1fr; } } .btn.np-login.in-login { width: auto; min-height: 2.25rem; padding: .375rem 1.25rem; }
+@media (max-width: 720px) { .in-stats, .in-cards, .in-tasks { grid-template-columns: 1fr; } .cta .btn { flex: 1 1 100%; } }
+.intro .in-tasks-sec { margin-top: 2rem; }
+@media (prefers-reduced-motion: reduce) { .in-task, .in-task-go .i { transition: none; } } .btn.np-login.in-login { width: auto; min-height: 2.25rem; padding: .375rem 1.25rem; }
 /* Hamburger: three lines that turn into an X while the menu is open */
 .hb { position: relative; display: block; width: 1.25rem; height: .875rem; }
 .ctrl-mode .hb { width: 1.05rem; height: .75rem; }
@@ -280,10 +308,14 @@ label.check { display: inline-flex; align-items: center; gap: .5rem; }
 .hamb[aria-expanded="true"] .hb i:nth-child(3) { top: calc(50% - 1px); transform: rotate(-45deg); }
 .hamb[aria-expanded="true"] { color: var(--primary); }
 /* SPIRO logo button */
-a.logo-ph { border-style: solid; border-color: var(--line); text-decoration: none; transition: transform .15s, box-shadow .15s, color .15s; }
+a.logo-ph, .top-logout { border-style: solid; border-color: var(--line); text-decoration: none; transition: transform .15s, box-shadow .15s, color .15s; }
 a.logo-ph .logo { color: var(--primary); }
-a.logo-ph:hover { transform: translateY(-1px); box-shadow: var(--shadow-lg); color: var(--primary); }
-@media (prefers-reduced-motion: reduce) { .intro *, .hb i, a.logo-ph { animation: none !important; transition: none !important; } }
+a.logo-ph:hover, .top-logout:hover { transform: translateY(-1px); box-shadow: var(--shadow-lg); color: var(--primary); }
+/* Log out button in the logo's spot (admin only) */
+.top-logout { font: inherit; cursor: pointer; }
+.top-logout[hidden] { display: none; }
+.top-logout svg { width: 1.25rem; height: 1.25rem; color: var(--primary); }
+@media (prefers-reduced-motion: reduce) { .intro *, .hb i, a.logo-ph, .top-logout { animation: none !important; transition: none !important; } }
 
 /* ---------- wide screens: card floats over the map on the left ---------- */
 @media (min-width: 900px) {
@@ -378,16 +410,11 @@ a.logo-ph:hover { transform: translateY(-1px); box-shadow: var(--shadow-lg); col
 .fc-h { margin: .25rem 0 0; font-size: .8125rem; color: var(--heading); }
 @media (prefers-reduced-motion: reduce) { .fp { transition: none; } }
 
-/* ---------- OpenStreetMap foot traffic ---------- */
 .lg-src { font-size: .625rem; color: var(--muted); margin: .25rem 0 0; line-height: 1.35; } .lg-src a { color: inherit; }
-.osm-ft { border-top: 1px solid var(--line); padding-top: .5rem; display: grid; gap: .25rem; }
-.osm-ft > p:first-child { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; font-size: .8125rem; color: var(--heading); }
-.osm-ft small { color: var(--muted); font-size: .75rem; }
+/* Crowding: most malls closed at the chosen hour */
+.crowd-closed { font-size: .75rem; line-height: 1.4; color: var(--heading); background: var(--warn-bg); border-left: .2rem solid var(--warn); padding: .4rem .55rem; border-radius: 0 var(--r-sm) var(--r-sm) 0; margin: .4rem 0; }
+.crowd-closed .link { font-weight: 700; }
 
-/* Sign Up beside Log In on the introduction page, and the switch link in the log-in window */
-.in-auth { display: inline-flex; align-items: center; gap: .5rem; }
-.btn.in-signup { min-height: 2.25rem; padding: .375rem 1.25rem; background: var(--surface); border-color: #1F6FA3; color: #1F6FA3; font-weight: 700; }
-.btn.in-signup:hover { background: #EAF2F8; color: #1F6FA3; }
-.lg-switch { margin: .75rem 0 0; text-align: center; }
-.link-btn { background: none; border: 0; padding: 0; font: inherit; font-weight: 700; color: #1F6FA3; text-decoration: underline; cursor: pointer; }
+/* "LGU administrators only" note in the log-in window */
+.login-note { margin: .75rem 0 0; text-align: center; }
 #lgForm-e { margin: .25rem 0 0; }

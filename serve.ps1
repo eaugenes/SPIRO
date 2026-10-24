@@ -2,24 +2,36 @@
 #
 #   powershell -ExecutionPolicy Bypass -File serve.ps1            # http://localhost:8000
 #   powershell -ExecutionPolicy Bypass -File serve.ps1 -Port 8080
+#   powershell -ExecutionPolicy Bypass -File serve.ps1 -NoBrowser # don't open the browser
 #
 # Why a server: the page reads the shared data files in data/ with fetch(),
 # which browsers block for pages opened from a file. Map tiles also need a normal
 # Referer, which file:// pages don't send.
 # "/" opens SPIRO.html. With Python, "python -m http.server 8000" works too.
-param([int]$Port = 8000)
+param([int]$Port = 8000, [switch]$NoBrowser)
 $root = (Resolve-Path $PSScriptRoot).Path
 $types = @{
   ".html" = "text/html; charset=utf-8"; ".js" = "text/javascript; charset=utf-8"; ".css" = "text/css; charset=utf-8"
   ".json" = "application/json; charset=utf-8"; ".geojson" = "application/geo+json; charset=utf-8"; ".csv" = "text/csv; charset=utf-8"; ".md" = "text/markdown; charset=utf-8"
-  ".svg" = "image/svg+xml"; ".png" = "image/png"; ".jpg" = "image/jpeg"; ".ico" = "image/x-icon"
+  ".svg" = "image/svg+xml"; ".png" = "image/png"; ".webp" = "image/webp"; ".jpg" = "image/jpeg"; ".ico" = "image/x-icon"
 }
 # Folders that may be listed, so the page can tell a missing data file from a broken one.
 $listable = '^(data|tests/fixtures/[a-z0-9-]+)/?$'
-$listener = New-Object System.Net.HttpListener
-$listener.Prefixes.Add("http://localhost:$Port/")
-$listener.Start()
-Write-Host "Serving $root at http://localhost:$Port/  (Ctrl+C to stop)"
+# If the port is busy (another server, or an earlier serve.ps1 still open), try the next ones.
+$listener = $null
+foreach ($try in $Port..($Port + 10)) {
+  $l = New-Object System.Net.HttpListener
+  $l.Prefixes.Add("http://localhost:$try/")
+  try { $l.Start(); $listener = $l; break }
+  catch { $l.Close(); Write-Host "Port $try is in use, trying $($try + 1)..." }
+}
+if ($null -eq $listener) {
+  Write-Host "Could not start: ports $Port to $($Port + 10) are all in use. Close other servers or use -Port <number>." -ForegroundColor Red
+  exit 1
+}
+$Port = $listener.Prefixes | Select-Object -First 1 | ForEach-Object { ([Uri]$_).Port }
+Write-Host "Serving $root at http://localhost:$Port/  (Ctrl+C to stop)" -ForegroundColor Green
+if (-not $NoBrowser) { Start-Process "http://localhost:$Port/" }
 try {
   while ($listener.IsListening) {
     $ctx = $listener.GetContext()

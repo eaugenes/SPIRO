@@ -1,18 +1,26 @@
 /* =====================================================================
-   PlaceDetailsView: the card for a selected city or public place.
-   Shows TB figures (city), typical busyness (place), a row of preventive
-   and precautionary measures.
+   PlaceDetailsView: the card for a selected city or mall.
+   Shows TB figures (city), the city's malls (crowding layer), a mall's BestTime
+   forecast, and a row of preventive and precautionary measures.
    ===================================================================== */
 
-import { OsmFoot } from "../models/foot-traffic-model.js";
-import { CATEGORY, CITIES, CITY, PLACE, busyLevel, cityName } from "../models/places-model.js";
+import { CATEGORY, CITIES, CITY, PLACE, busyLevel, cityMalls, cityName, daySummary } from "../models/places-model.js";
 import { TB, TB_COLORS, TREND_FROM, TREND_TO, TbData, YEARS, tbClass, tbVal, trendFor, yStatus } from "../models/tb-data-model.js";
 import { $, $$, icon, toast } from "../utils/dom.js";
 import { DOW, esc, fmt, hourLabel, parseIso, pct, whenLabel } from "../utils/format.js";
 import { Charts } from "./helpers/charts.js";
 import { DataModelView } from "./data-model-view.js";
-import { LEVEL_COLOR, crowdCSS } from "./helpers/map-scales.js";
-import { osmSourceHTML } from "./helpers/source-notes.js";
+import { LEVEL_COLOR, MAP_MEASURE, crowdCSS } from "./helpers/map-scales.js";
+
+/* Makati and Taguig: the EMBO barangays moved from Makati to Taguig, which shows in the data as a
+   sharp population change between 2023 and 2024 (see data/data_dictionary.md). */
+const EMBO = "the EMBO barangays moved from Makati to Taguig. Figures from 2023 and earlier cover a different area from 2024 onward, so compare them with care.";
+const BOUNDARY_NOTE = {
+  makati: `Between 2023 and 2024 Makati's population in the data falls by about half: ${EMBO}`,
+  taguig: `Between 2023 and 2024 Taguig's population in the data rises by about 40%: ${EMBO}`
+};
+import { closedNoticeHTML } from "./helpers/crowd-notice.js";
+import { besttimeSourceHTML } from "./helpers/source-notes.js";
 
 /* Short, general guidance. Not personal medical advice. */
 export const PREVENTION = [
@@ -66,33 +74,40 @@ export class PlaceDetailsView {
 
   cityTbHTML(id) {
     const s = this.model.state, y = s.year, d = TB[id][y], admin = s.isAdmin;
-    const k = tbClass(d.count, "count"), tr = trendFor(id), last = this.latestTb(id);
+    const k = tbClass(tbVal(id, y, MAP_MEASURE), MAP_MEASURE), tr = trendFor(id), last = this.latestTb(id);
     const ranked = CITIES.map(c => [c.id, TB[c.id][y].rate]).filter(p => p[1] != null).sort((a, b) => b[1] - a[1]), rk = ranked.findIndex(p => p[0] === id);
     const noFile = !TbData.available();
     return `${this.head("", cityName(id))}
       <section class="pc-sec" aria-label="TB summary">
         ${d.count == null
           ? `<p class="empty-state">${noFile ? "No TB case data has been loaded yet." : `No TB case count for ${esc(CITY[id].name)} in ${y}.`}</p>`
-          : `<div class="kpi"><span class="kpi-l">Notified TB cases, ${y}</span><span class="kpi-v"><span class="sw" style="background:${TB_COLORS[k]}"></span>${fmt(d.count)}</span></div>`}
+          : `<div class="kpi"><span class="kpi-l">TB cases per 100,000 people, ${y}</span><span class="kpi-v">${k >= 0 ? `<span class="sw" style="background:${TB_COLORS[k]}"></span>` : ""}${d.rate == null ? "–" : fmt(d.rate)}</span></div>`}
         <dl class="pc-kv">
+          ${d.count != null ? `<dt>Notified TB cases, ${y}</dt><dd>${fmt(d.count)}</dd>` : ""}
           ${d.population != null ? `<dt>Population, ${y}</dt><dd>${fmt(d.population)} <small class="muted">(projected)</small></dd>` : `<dt>Population</dt><dd>${fmt(CITY[id].pop)} <small class="muted">(2025 projected)</small></dd>`}
           <dt>Last updated</dt><dd>${last ? `${esc(last.text)}${last.sub ? `<br><small class="muted">${esc(last.sub)}</small>` : ""}` : "No observation available"}</dd>
-          ${admin && d.rate != null ? `<dt>Per 100,000</dt><dd>${fmt(d.rate, 1)}</dd><dt>Rank by rate</dt><dd>${rk + 1} of ${ranked.length}</dd><dt>Trend ${TREND_FROM ?? "–"}–${TREND_TO ?? "–"}</dt><dd>${this.trendText(tr)}</dd>` : ""}
+          ${admin && d.rate != null ? `<dt>Rank by rate</dt><dd>${rk + 1} of ${ranked.length}</dd><dt>Trend ${TREND_FROM ?? "–"}–${TREND_TO ?? "–"}</dt><dd>${this.trendText(tr)}</dd>` : ""}
         </dl>
+        ${BOUNDARY_NOTE[id] ? `<p class="notice">${icon("i-info")}<span>${BOUNDARY_NOTE[id]}</span></p>` : ""}
         ${admin ? DataModelView.cityPredictionsHTML(id) : ""}
         ${admin ? `<div class="chart" id="pcSpark" data-city="${id}"></div>` : ""}
       </section>
       ${this.preventionHTML()}`;
   }
 
-  /* No defensible city-level crowding indicator exists in this project (no measured
-     occupancy or headcounts), so no Low/Moderate/High level is assigned to a city. */
+  /* The city's malls with a BestTime forecast, busiest at the chosen time first. No single
+     level is given to the whole city: the malls are not a measure of the city's crowding. */
   cityCrowdHTML(id) {
+    const s = this.model.state, malls = cityMalls(id).map(p => [p, this.model.busyAt(p)]).sort((a, b) => (b[1] ?? -1) - (a[1] ?? -1));
     return `${this.head("", cityName(id))}
-      <section class="pc-sec" aria-labelledby="pcRisk">
-        <h3 id="pcRisk">Crowding risk level</h3>
-        <p><span class="risk-badge">Unavailable</span></p>
-        <p class="small">Overcrowding risk cannot be assessed from the currently available data.</p>
+      <section class="pc-sec fc" aria-labelledby="pcMalls">
+        <h3 id="pcMalls">Malls, ${esc(whenLabel(s))}</h3>
+        ${malls.length ? closedNoticeHTML(id, s) : ""}
+        ${malls.length ? `<ul class="fc-list">${malls.map(([p, b]) => { const lv = busyLevel(b);
+          return `<li><button type="button" class="fc-row" data-place="${esc(p.id)}"><span class="lvl" style="--c:${LEVEL_COLOR[lv]}">${lv}</span><span><b>${esc(p.name)}</b><small>${b == null ? "Usually closed at this hour" : `${b}% of its busiest hour`}</small></span></button></li>`; }).join("")}</ul>
+          <p class="pc-src">Each mall's own forecast for a typical ${DOW[s.day]}, not live. ${besttimeSourceHTML()}</p>`
+        : `<p class="empty-state">BestTime has no mall forecasts for ${esc(CITY[id].name)} yet.</p>`}
+        <p class="remind">Reminder: A busy place is not evidence that TB is spreading there.</p>
       </section>
       ${this.preventionHTML()}`;
   }
@@ -104,12 +119,24 @@ export class PlaceDetailsView {
         <h3 id="pcBusy">Crowding, ${esc(whenLabel(s))}</h3>
         <p class="big-num"><span class="lvl" style="--c:${LEVEL_COLOR[lv]}">${lv}</span><small>${b == null ? "usually closed at this hour" : `${b}% of its busiest hour`}</small></p>
         <div class="chart" id="pcDay" data-place="${p.id}"></div>
-        <p class="pc-src">Estimated: the assumed typical week for a ${esc(CATEGORY[p.cat].label.toLowerCase())}, not measured here and not live.</p>
-        ${(() => { const f = OsmFoot.levelAt(p.lat, p.lng, s); if (f == null) return ""; const fl = f < 1 ? "Low" : busyLevel(f);
-          return `<div class="osm-ft"><p><b>Foot traffic around here</b><span class="lvl" style="--c:${LEVEL_COLOR[fl]}">${fl}</span><small>${f}% of NCR's busiest areas</small></p><p class="pc-src">${osmSourceHTML(OsmFoot.status())}</p></div>`; })()}
+        ${this.forecastHTML(p)}
         <p class="remind">Reminder: A busy place is not evidence that TB is spreading there.</p>
       </section>
       ${this.preventionHTML()}`;
+  }
+
+  /* From the mall's BestTime forecast for the chosen weekday: busiest hour, busy and quieter open hours, typical visit length. */
+  forecastHTML(p) {
+    const d = this.model.state.day, h12 = h => hourLabel(h % 24), range = ([a, b]) => b - a === 1 ? h12(a) : `${h12(a)}–${h12(b)}`;
+    const sm = daySummary(p.week, d), dw = p.bt.dwell;
+    return `<dl class="pc-kv">
+        ${sm ? `<dt>Busiest on ${DOW[d]}s</dt><dd>${h12(sm.top)} <small class="muted">(${sm.topValue}%)</small></dd>
+        <dt>Busy hours</dt><dd>${sm.busy.length ? sm.busy.map(range).join(", ") : "None (never above 70%)"}</dd>
+        <dt>Quieter hours</dt><dd>${sm.quiet.length ? sm.quiet.map(range).join(", ") : "None while open"}</dd>` : `<dt>${DOW[d]}</dt><dd>Usually closed</dd>`}
+        ${dw ? `<dt>Typical visit</dt><dd>${fmt(dw.min)}–${fmt(dw.max)} min</dd>` : ""}
+        ${p.bt.parts.length ? `<dt>Includes</dt><dd>${p.bt.parts.map(esc).join("<br>")} <small class="muted">(same complex, counted once)</small></dd>` : ""}
+      </dl>
+      <p class="pc-src">A typical ${DOW[d]} at this mall, not live. ${besttimeSourceHTML()}</p>`;
   }
 
   trendText(t) { return t.dir === "Insufficient" ? "Not enough data" : `${t.dir} (${pct(t.pct)}/yr)`; }
@@ -137,6 +164,7 @@ export class PlaceDetailsView {
     $$("[data-fac]", card).forEach(b => b.addEventListener("click", () => this.handlers.onSelect({ type: b.dataset.factype || "fac", id: b.dataset.fac })));
     $$("[data-place]", card).forEach(b => b.tagName === "BUTTON" && b.addEventListener("click", () => this.handlers.onSelect({ type: "place", id: b.dataset.place })));
     $$("[data-route]", card).forEach(a => a.addEventListener("click", e => { e.preventDefault(); this.handlers.onNavigate(a.dataset.route); }));
+    $$("[data-jump-hour]", card).forEach(b => b.addEventListener("click", () => this.handlers.onTime(+b.dataset.jumpHour, 0, 0)));
     $$(".prev-btn", card).forEach(b => b.addEventListener("click", () => {
       const id = b.dataset.prev; this.openTip = this.openTip === id ? null : id;
       $$(".prev-btn", card).forEach(x => x.setAttribute("aria-expanded", x.dataset.prev === this.openTip));
@@ -154,7 +182,7 @@ export class PlaceDetailsView {
     if (dy) {
       const p = PLACE[dy.dataset.place], s = this.model.state, row = p.week[s.day];
       Charts.bars(dy, { labels: [...Array(24).keys()].map(h => h % 6 === 0 ? hourLabel(h).replace(" ", "") : ""), labelEvery: 1, values: row, max: 100, ticks: [0, 50, 100], unit: "%", height: 130, hi: s.hour,
-        color: (i, v) => crowdCSS(v / 100), tip: i => `${hourLabel(i)}<br><b>${row[i] == null ? "Closed" : row[i] + "% · " + busyLevel(row[i])}</b>`, aria: `Typical crowding at ${p.name} through ${DOW[s.day]}` });
+        color: (i, v) => crowdCSS(v / 100), tip: i => `${hourLabel(i)}<br><b>${row[i] == null ? "Closed" : row[i] + "% · " + busyLevel(row[i])}</b>`, aria: `Forecast crowding at ${p.name} through ${DOW[s.day]}` });
     }
   }
 }
